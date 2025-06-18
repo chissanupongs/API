@@ -1,1 +1,56 @@
-[]
+[
+  {
+    "timestamp": "2025-06-18T09:39:45.141Z",
+    "action": "updateCaseStatus",
+    "case": {
+      "token": "testtoken",
+      "case_id": [
+        "case123"
+      ],
+      "case_status": "Opened",
+      "case_result": null,
+      "timestamp": "2025-06-18T09:39:45.141Z"
+    }
+  },
+  {
+    "timestamp": "2025-06-18T09:39:45.141Z",
+    "action": "updateCaseStatus",
+    "case": {
+      "token": "testtoken",
+      "case_id": [
+        "case456"
+      ],
+      "case_status": "Opened",
+      "case_result": null,
+      "timestamp": "2025-06-18T09:39:45.141Z"
+    }
+  },
+  {
+    "timestamp": "2025-06-18T09:39:53.522Z",
+    "action": "updateCaseResult",
+    "case": {
+      "token": "testtoken",
+      "case_id": [
+        "case123"
+      ],
+      "case_status": "Opened",
+      "case_result": "TruePositives",
+      "timestamp": "2025-06-18T09:39:53.522Z",
+      "reason": "some reason"
+    }
+  },
+  {
+    "timestamp": "2025-06-18T09:39:53.522Z",
+    "action": "updateCaseResult",
+    "case": {
+      "token": "testtoken",
+      "case_id": [
+        "case456"
+      ],
+      "case_status": "Opened",
+      "case_result": "TruePositives",
+      "timestamp": "2025-06-18T09:39:53.522Z",
+      "reason": "some reason"
+    }
+  }
+]

@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const path = require("path");
 const fs = require("fs");
+const { request, gql } = require("graphql-request");
 
 let caselist = [];
 const VALID_STATUSES = ["Opened", "Closed"];
@@ -113,17 +114,23 @@ router.put("/updateCaseStatus", (req, res) => {
 
 // ✅ PUT: อัปเดต case_result
 router.put("/updateCaseResult", (req, res) => {
-    const { token, case_id, case_result } = req.body;
+    const { token, case_id, case_result, reason } = req.body;
 
     if (!token || !Array.isArray(case_id) || !case_result) {
-        return res
-            .status(400)
-            .json({ error: "token, case_id array and case_result required" });
+        return res.status(400).json({
+            error: "token, case_id array and case_result required",
+        });
     }
 
     if (!VALID_RESULTS.includes(case_result)) {
         return res.status(400).json({
             error: `Invalid 'case_result'. Allowed: ${VALID_RESULTS.join(", ")}`,
+        });
+    }
+
+    if (!reason || typeof reason !== "string" || reason.trim() === "") {
+        return res.status(400).json({
+            error: "A valid reason for updating case_result is required",
         });
     }
 
@@ -140,7 +147,10 @@ router.put("/updateCaseResult", (req, res) => {
             if (!caselist[index].case_id.includes(singleCaseId)) {
                 caselist[index].case_id.push(singleCaseId);
             }
-            updatedCases.push(caselist[index]);
+            updatedCases.push({
+                ...caselist[index],
+                reason,
+            });
         } else {
             const newCase = {
                 token,
@@ -148,6 +158,7 @@ router.put("/updateCaseResult", (req, res) => {
                 case_status: null,
                 case_result,
                 timestamp: new Date().toISOString(),
+                reason,
             };
             caselist.push(newCase);
             updatedCases.push(newCase);
@@ -157,6 +168,7 @@ router.put("/updateCaseResult", (req, res) => {
     appendHistory("updateCaseResult", updatedCases);
     res.json(updatedCases);
 });
+
 
 // ✅ DELETE: ลบเคส
 router.delete("/deleteCase", (req, res) => {

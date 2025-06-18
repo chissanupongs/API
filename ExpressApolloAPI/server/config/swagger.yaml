@@ -9,31 +9,132 @@ servers:
     description: Local development server
 
 paths:
+  /accounts/users:
+    get:
+      summary: Get list of user accounts
+      description: ดึงข้อมูลรายชื่อผู้ใช้งานจาก GraphQL server ผ่าน endpoint `/accounts/users`
+      tags:
+        - User Accounts
+      responses:
+        "200":
+          description: รายชื่อผู้ใช้งานทั้งหมด
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      example: "123"
+                    name:
+                      type: string
+                      example: "Alice"
+                    user_email:
+                      type: string
+                      format: email
+                      example: "alice@example.com"
+        "500":
+          description: เกิดข้อผิดพลาดจากฝั่งเซิร์ฟเวอร์
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Failed to fetch users"
+
+  /accounts/unlock:
+    put:
+      summary: Unlock user account
+      description: ปลดล็อกบัญชีผู้ใช้โดยใช้ user ID
+      tags:
+        - User Accounts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - id
+              properties:
+                id:
+                  type: string
+                  example: "c54e7a4f-1d03-4f89-a18e-2a5d6f7b9d2b"
+      responses:
+        "200":
+          description: Account unlocked successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  user_email:
+                    type: string
+                  account_status:
+                    type: string
+                    example: Active
+        "400":
+          description: Missing user ID
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Missing user ID
+        "404":
+          description: User not found or unlock failed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: User not found or unlock failed
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Failed to unlock account
+
   /caselist:
     get:
       summary: ดูรายการเคสทั้งหมด
       responses:
-        '200':
+        "200":
           description: รายการเคสทั้งหมดในระบบ
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Case'
+                  $ref: "#/components/schemas/Case"
 
   /history:
     get:
       summary: ดูประวัติการเปลี่ยนแปลงเคสทั้งหมด
       responses:
-        '200':
+        "200":
           description: รายการประวัติทั้งหมด
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/HistoryEntry'
+                  $ref: "#/components/schemas/HistoryEntry"
 
   /updateCaseStatus:
     put:
@@ -43,17 +144,17 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateCaseStatusInput'
+              $ref: "#/components/schemas/UpdateCaseStatusInput"
       responses:
-        '200':
+        "200":
           description: เคสที่ถูกอัปเดตสถานะ
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Case'
-        '400':
+                  $ref: "#/components/schemas/Case"
+        "400":
           description: ข้อมูลไม่ถูกต้อง
 
   /updateCaseResult:
@@ -64,17 +165,17 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateCaseResultInput'
+              $ref: "#/components/schemas/UpdateCaseResultInput"
       responses:
-        '200':
+        "200":
           description: เคสที่ถูกอัปเดตผลลัพธ์
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Case'
-        '400':
+                  $ref: "#/components/schemas/Case"
+        "400":
           description: ข้อมูลไม่ถูกต้อง
 
   /deleteCase:
@@ -85,19 +186,19 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DeleteCaseInput'
+              $ref: "#/components/schemas/DeleteCaseInput"
       responses:
-        '200':
+        "200":
           description: เคสที่ถูกลบ
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Case'
-        '400':
+                  $ref: "#/components/schemas/Case"
+        "400":
           description: ข้อมูลไม่ถูกต้อง
-        '404':
+        "404":
           description: ไม่พบเคสที่ต้องการลบ
 
 components:
@@ -139,7 +240,7 @@ components:
           type: string
           example: "addCase"
         case:
-          $ref: '#/components/schemas/Case'
+          $ref: "#/components/schemas/Case"
 
     UpdateCaseStatusInput:
       type: object
@@ -167,6 +268,7 @@ components:
         - token
         - case_id
         - case_result
+        - reason
       properties:
         token:
           type: string
@@ -180,6 +282,9 @@ components:
           type: string
           enum: [WaitingAnalysis, TruePositives, FalsePositives]
           example: "TruePositives"
+        reason:
+          type: string
+          example: "some reason"
 
     DeleteCaseInput:
       type: object
