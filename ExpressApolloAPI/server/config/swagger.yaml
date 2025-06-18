@@ -1,7 +1,7 @@
 openapi: 3.0.4
 info:
   title: Case Management API
-  description: API สำหรับจัดการเคส เช่น เพิ่ม, อัปเดตสถานะ, ผลลัพธ์, ลบ, ล็อค และดูประวัติ
+  description: API สำหรับจัดการเคส เช่น เพิ่ม, อัปเดตสถานะ, ผลลัพธ์, ลบ และดูประวัติ
   version: 1.0.0
 
 servers:
