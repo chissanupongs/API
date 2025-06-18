@@ -2,25 +2,11 @@
 const express = require("express");
 const router = express.Router();
 const { request, gql } = require("graphql-request");
+const { USERS_QUERY } = require("../graphql/queries");
 
 const GRAPHQL_ENDPOINT = "http://192.168.150.236:32002/graphql";
 const TOKEN = "36e4b886-ebd7-45b0-93a2-840214c71a22";
 
-// GraphQL query
-const USERS_QUERY = gql`
-  query {
-    users {
-      edges {
-        node {
-          id
-          name
-          user_email
-          account_status
-        }
-      }
-    }
-  }
-`;
 
 // 🔁 Mutation สำหรับเปลี่ยนสถานะ account
 const UPDATE_USER_STATUS = gql`

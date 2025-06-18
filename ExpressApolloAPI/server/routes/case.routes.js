@@ -8,6 +8,8 @@ let caselist = [];
 const VALID_STATUSES = ["Opened", "Closed"];
 const VALID_RESULTS = ["WaitingAnalysis", "TruePositives", "FalsePositives"];
 const HISTORY_FILE_PATH = path.join(__dirname, "../data/history.json");
+const GRAPHQL_ENDPOINT = "http://192.168.150.236:32002/graphql";
+const TOKEN = "36e4b886-ebd7-45b0-93a2-840214c71a22";
 
 // เคลียร์ history เมื่อเริ่มต้น
 try {
