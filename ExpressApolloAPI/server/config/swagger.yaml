@@ -1,0 +1,197 @@
+openapi: 3.0.4
+info:
+  title: Case Management API
+  description: API สำหรับจัดการเคส เช่น เพิ่ม, อัปเดตสถานะ, ผลลัพธ์, ลบ, ล็อค และดูประวัติ
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:4000
+    description: Local development server
+
+paths:
+  /caselist:
+    get:
+      summary: ดูรายการเคสทั้งหมด
+      responses:
+        '200':
+          description: รายการเคสทั้งหมดในระบบ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Case'
+
+  /history:
+    get:
+      summary: ดูประวัติการเปลี่ยนแปลงเคสทั้งหมด
+      responses:
+        '200':
+          description: รายการประวัติทั้งหมด
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HistoryEntry'
+
+  /updateCaseStatus:
+    put:
+      summary: อัปเดตสถานะของเคส
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCaseStatusInput'
+      responses:
+        '200':
+          description: เคสที่ถูกอัปเดตสถานะ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Case'
+        '400':
+          description: ข้อมูลไม่ถูกต้อง
+
+  /updateCaseResult:
+    put:
+      summary: อัปเดตผลลัพธ์ของเคส
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCaseResultInput'
+      responses:
+        '200':
+          description: เคสที่ถูกอัปเดตผลลัพธ์
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Case'
+        '400':
+          description: ข้อมูลไม่ถูกต้อง
+
+  /deleteCase:
+    delete:
+      summary: ลบเคส
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteCaseInput'
+      responses:
+        '200':
+          description: เคสที่ถูกลบ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Case'
+        '400':
+          description: ข้อมูลไม่ถูกต้อง
+        '404':
+          description: ไม่พบเคสที่ต้องการลบ
+
+components:
+  schemas:
+    Case:
+      type: object
+      properties:
+        token:
+          type: string
+          example: "testtoken"
+        case_id:
+          type: array
+          items:
+            type: string
+          example: ["case123", "case456"]
+        case_status:
+          type: string
+          enum: [Opened, Closed]
+          nullable: true
+          example: "Opened"
+        case_result:
+          type: string
+          enum: [WaitingAnalysis, TruePositives, FalsePositives]
+          nullable: true
+          example: "TruePositives"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-06-17T10:30:00Z"
+
+    HistoryEntry:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-06-17T10:30:00Z"
+        action:
+          type: string
+          example: "addCase"
+        case:
+          $ref: '#/components/schemas/Case'
+
+    UpdateCaseStatusInput:
+      type: object
+      required:
+        - token
+        - case_id
+        - case_status
+      properties:
+        token:
+          type: string
+          example: "testtoken"
+        case_id:
+          type: array
+          items:
+            type: string
+          example: ["case123", "case456"]
+        case_status:
+          type: string
+          enum: [Opened, Closed]
+          example: "Opened"
+
+    UpdateCaseResultInput:
+      type: object
+      required:
+        - token
+        - case_id
+        - case_result
+      properties:
+        token:
+          type: string
+          example: "testtoken"
+        case_id:
+          type: array
+          items:
+            type: string
+          example: ["case123", "case456"]
+        case_result:
+          type: string
+          enum: [WaitingAnalysis, TruePositives, FalsePositives]
+          example: "TruePositives"
+
+    DeleteCaseInput:
+      type: object
+      required:
+        - token
+        - case_id
+      properties:
+        token:
+          type: string
+          example: "testtoken"
+        case_id:
+          type: array
+          items:
+            type: string
+          example: ["case123", "case456"]
