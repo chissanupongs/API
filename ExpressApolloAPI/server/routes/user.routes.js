@@ -1,11 +1,16 @@
 const express = require("express");
 const router = express.Router();
-const { request, gql } = require("graphql-request");
+const { request } = require("graphql-request");
 const { USERS_QUERY } = require("../graphql/queries");
 const { UPDATE_USER_STATUS } = require("../graphql/mutation.js");
 const { GRAPHQL_ENDPOINT, TOKEN } = require("../config/apollo.config.js");
+const { requireUserEmail } = require("../middleware/authMiddleware");
+const { appendHistory } = require("../utils/history");
 
-router.get("/users", async (req, res) => {
+// ===================
+// GET: รายชื่อผู้ใช้ทั้งหมด
+// ===================
+router.get("/users", requireUserEmail, async (req, res) => {
   const headers = {
     Authorization: `Bearer ${TOKEN}`,
   };
@@ -19,15 +24,26 @@ router.get("/users", async (req, res) => {
     });
     res.json(data);
   } catch (error) {
-    // console.error("❌ Error fetching users:", error.response?.errors || error.message);
     res.status(500).json({ error: "Failed to fetch users" });
   }
 });
 
-router.put("/unlock", async (req, res) => {
+// ===================
+// PUT: ปลดล็อกบัญชีผู้ใช้ตาม user_email
+// ===================
+router.put("/unlock", requireUserEmail, async (req, res) => {
   const { user_email } = req.body;
+  const context = {
+    user_email: req.user_email, // แก้จาก req.userEmail เป็น req.user_email
+    user_agent: req.userAgent,
+    ip_address: req.userIP,
+  };
 
-  if (!user_email || typeof user_email !== "string" || user_email.trim() === "") {
+  if (
+    !user_email ||
+    typeof user_email !== "string" ||
+    user_email.trim() === ""
+  ) {
     return res.status(400).json({ error: "Missing or invalid 'user_email'" });
   }
 
@@ -36,7 +52,7 @@ router.put("/unlock", async (req, res) => {
   };
 
   try {
-    // ✅ 1. ดึง users ทั้งหมด
+    // 1. ดึง users ทั้งหมด
     const usersData = await request({
       url: GRAPHQL_ENDPOINT,
       document: USERS_QUERY,
@@ -44,7 +60,7 @@ router.put("/unlock", async (req, res) => {
       requestHeaders: headers,
     });
 
-    // ✅ 2. หา user ที่ตรงกับ email
+    // 2. หา user ที่ตรงกับ email
     const users = usersData?.users?.edges || [];
     const matchedUser = users
       .map((u) => u.node)
@@ -54,9 +70,9 @@ router.put("/unlock", async (req, res) => {
       return res.status(404).json({ error: "User not found with given email" });
     }
 
-    const { id } = matchedUser;
+    const { id, name, account_status } = matchedUser;
 
-    // ✅ 3. ทำการปลดล็อกด้วย ID ที่หาได้
+    // 3. ปลดล็อกบัญชี
     const unlockData = await request({
       url: GRAPHQL_ENDPOINT,
       document: UPDATE_USER_STATUS,
@@ -64,18 +80,32 @@ router.put("/unlock", async (req, res) => {
       requestHeaders: headers,
     });
 
-    const user = unlockData?.unlockAccount;
+    const unlockedUser = unlockData?.unlockAccount;
 
-    if (!user) {
+    if (!unlockedUser) {
       return res.status(404).json({ error: "Unlock failed or user not found" });
     }
 
-    res.json(user);
+    // 4. บันทึกประวัติ
+    appendHistory(
+      "unlockUser",
+      [
+        {
+          id: unlockedUser.id,
+          name: unlockedUser.name,
+          user_email: unlockedUser.user_email,
+          status_before: account_status,
+          status_after: unlockedUser.account_status,
+        },
+      ],
+      context
+    );
+
+    res.json(unlockedUser);
   } catch (error) {
     console.error("❌ Failed to unlock account:", error);
     res.status(500).json({ error: "Failed to unlock account" });
   }
 });
-
 
 module.exports = router;

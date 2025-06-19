@@ -13,246 +13,13 @@ tags:
   - name: Incidents
   - name: History
 
-paths:
-  /accounts/users:
-    get:
-      summary: Get list of user accounts
-      tags: [User Accounts]
-      responses:
-        "200":
-          description: รายชื่อผู้ใช้งานทั้งหมด
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/User"
-        "500":
-          description: เกิดข้อผิดพลาดจากฝั่งเซิร์ฟเวอร์
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
-  /accounts/unlock:
-    put:
-      summary: Unlock user account
-      tags: [User Accounts]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [id]
-              properties:
-                user_email:
-                  type: string
-      responses:
-        "200":
-          description: Account unlocked successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/UserStatus"
-        "400":
-          description: Missing user ID
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "404":
-          description: User not found or unlock failed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
-  /incidents:
-    get:
-      summary: ดึงรายชื่อ incidents ทั้งหมด
-      tags: [Incidents]
-      responses:
-        "200":
-          description: รายชื่อ incidents
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/IncidentList"
-        "500":
-          description: เกิดข้อผิดพลาดในการดึงข้อมูล
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
-  /incident:
-    put:
-      summary: ดึง incident ตาม ID (ผ่าน request body)
-      tags: [Incidents]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [id]
-              properties:
-                id:
-                  type: string
-      responses:
-        "200":
-          description: ข้อมูล incident ตาม ID
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Incident"
-        "400":
-          description: id ไม่ถูกต้อง
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "500":
-          description: เกิดข้อผิดพลาดในการดึงข้อมูล
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
-  /closedAlertStatus:
-    put:
-      summary: ปิด alert_status ของ incident พร้อมเพิ่ม note อัตโนมัติ
-      tags: [Incidents]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [id, alert_status]
-              properties:
-                id:
-                  type: string
-                  example: "incident-001"
-                alert_status:
-                  type: string
-                  enum: [Closed]
-                  example: "Closed"
-      responses:
-        "200":
-          description: อัปเดต alert_status สำเร็จและเพิ่ม note
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  id:
-                    type: string
-                  alert_status:
-                    type: string
-                  case_result:
-                    type: string
-                  note:
-                    $ref: "#/components/schemas/Note"
-              example:
-                id: "incident-001"
-                alert_status: "Closed"
-                case_result: "WaitingAnalysis"
-                note:
-                  id: "note-999"
-                  action: "Closed"
-                  content: "Incident was Closed"
-                  created_at: "2025-06-19T10:00:00Z"
-        "400":
-          description: ข้อมูลไม่ถูกต้อง
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-            example:
-              error: "This endpoint only accepts 'Closed' alert_status"
-        "500":
-          description: เกิดข้อผิดพลาด
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-            example:
-              error: "Failed to update alert_status or add note"
-
-
-  /updateCaseResult:
-    put:
-      summary: อัปเดต case_result ของ incident พร้อมเพิ่ม note อัตโนมัติ
-      tags: [Incidents]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [id, case_result, reason]
-              properties:
-                id:
-                  type: string
-                case_result:
-                  type: string
-                  enum: [WaitingAnalysis, TruePositives, FalsePositives]
-                reason:
-                  type: string
-      responses:
-        "200":
-          description: อัปเดต case_result สำเร็จและเพิ่ม note
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  updated:
-                    $ref: "#/components/schemas/Incident"
-                  note:
-                    $ref: "#/components/schemas/Note"
-        "400":
-          description: ข้อมูลไม่ถูกต้อง
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "500":
-          description: เกิดข้อผิดพลาด
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
-  /history:
-    get:
-      summary: ดึงประวัติการเปลี่ยนแปลงทั้งหมด
-      tags: [History]
-      responses:
-        "200":
-          description: รายการประวัติ
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/HistoryEntry"
-        "500":
-          description: เกิดข้อผิดพลาดในการอ่านประวัติ
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
 components:
+  securitySchemes:
+    UserEmailHeader:
+      type: apiKey
+      in: header
+      name: user_email
+
   schemas:
     User:
       type: object
@@ -316,6 +83,9 @@ components:
     HistoryEntry:
       type: object
       properties:
+        authentication:
+          type: string
+          description: user_email ของผู้ทำการเปลี่ยนแปลง
         action:
           type: string
         case:
@@ -328,3 +98,260 @@ components:
       properties:
         error:
           type: string
+
+paths:
+  /accounts/users:
+    get:
+      summary: Get list of user accounts
+      tags: [User Accounts]
+      security:
+        - UserEmailHeader: []
+      responses:
+        "200":
+          description: รายชื่อผู้ใช้งานทั้งหมด
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+        "500":
+          description: เกิดข้อผิดพลาดจากฝั่งเซิร์ฟเวอร์
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /accounts/unlock:
+    put:
+      summary: Unlock user account
+      tags: [User Accounts]
+      security:
+        - UserEmailHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_email]
+              properties:
+                user_email:
+                  type: string
+                  example: "abc@gmail.com"
+      responses:
+        "200":
+          description: Account unlocked successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserStatus"
+        "400":
+          description: Missing user email
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: User not found or unlock failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /incidents:
+    get:
+      summary: ดึงรายชื่อ incidents ทั้งหมด
+      tags: [Incidents]
+      security:
+        - UserEmailHeader: []
+      responses:
+        "200":
+          description: รายชื่อ incidents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncidentList"
+        "500":
+          description: เกิดข้อผิดพลาดในการดึงข้อมูล
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /incident:
+    put:
+      summary: ดึง incident ตาม ID (ผ่าน request body)
+      tags: [Incidents]
+      security:
+        - UserEmailHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: string
+                  example: "incident-001"
+      responses:
+        "200":
+          description: ข้อมูล incident ตาม ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Incident"
+        "400":
+          description: id ไม่ถูกต้อง
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: เกิดข้อผิดพลาดในการดึงข้อมูล
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /closedAlertStatus:
+    put:
+      summary: ปิด alert_status ของ incident พร้อมเพิ่ม note อัตโนมัติ
+      tags: [Incidents]
+      security:
+        - UserEmailHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, alert_status]
+              properties:
+                id:
+                  type: string
+                  example: "incident-001"
+                alert_status:
+                  type: string
+                  enum: [Closed]
+                  example: "Closed"
+      responses:
+        "200":
+          description: อัปเดต alert_status สำเร็จและเพิ่ม note
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  alert_status:
+                    type: string
+                  case_result:
+                    type: string
+                  note:
+                    $ref: "#/components/schemas/Note"
+              example:
+                id: "incident-001"
+                alert_status: "Closed"
+                case_result: "WaitingAnalysis"
+                note:
+                  id: "note-999"
+                  action: "Closed"
+                  content: "Incident was Closed"
+                  created_at: "2025-06-19T10:00:00Z"
+        "400":
+          description: ข้อมูลไม่ถูกต้อง
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "This endpoint only accepts 'Closed' alert_status"
+        "500":
+          description: เกิดข้อผิดพลาด
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Failed to update alert_status or add note"
+
+  /updateCaseResult:
+    put:
+      summary: อัปเดต case_result ของ incident พร้อมเพิ่ม note อัตโนมัติ
+      tags: [Incidents]
+      security:
+        - UserEmailHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, case_result, reason]
+              properties:
+                id:
+                  type: string
+                  example: "incident-001"
+                case_result:
+                  type: string
+                  enum: [WaitingAnalysis, TruePositives, FalsePositives]
+                  example: TruePositives
+                reason:
+                  type: string
+                  example: "Verified as true positive case"
+      responses:
+        "200":
+          description: อัปเดต case_result สำเร็จและเพิ่ม note
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated:
+                    $ref: "#/components/schemas/Incident"
+                  note:
+                    $ref: "#/components/schemas/Note"
+        "400":
+          description: ข้อมูลไม่ถูกต้อง
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: เกิดข้อผิดพลาด
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /history:
+    get:
+      summary: ดึงประวัติการเปลี่ยนแปลงทั้งหมด
+      tags: [History]
+      security:
+        - UserEmailHeader: []
+      responses:
+        "200":
+          description: รายการประวัติ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HistoryEntry"
+        "500":
+          description: เกิดข้อผิดพลาดในการอ่านประวัติ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
