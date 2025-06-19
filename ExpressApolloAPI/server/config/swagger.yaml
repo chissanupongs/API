@@ -1,20 +1,23 @@
 openapi: 3.0.4
 info:
   title: Case Management API
-  description: API สำหรับจัดการเคส เช่น เพิ่ม, อัปเดตสถานะ, ผลลัพธ์, ลบ และดูประวัติ
+  description: API สำหรับจัดการเคส เช่น เพิ่ม, อัปเดตสถานะ, ผลลัพธ์, เพิ่มโน้ต และดูประวัติ
   version: 1.0.0
 
 servers:
   - url: http://localhost:4000
     description: Local development server
 
+tags:
+  - name: User Accounts
+  - name: Incidents
+  - name: History
+
 paths:
   /accounts/users:
     get:
       summary: Get list of user accounts
-      description: ดึงข้อมูลรายชื่อผู้ใช้งานจาก GraphQL server ผ่าน endpoint `/accounts/users`
-      tags:
-        - User Accounts
+      tags: [User Accounts]
       responses:
         "200":
           description: รายชื่อผู้ใช้งานทั้งหมด
@@ -23,50 +26,128 @@ paths:
               schema:
                 type: array
                 items:
-                  type: object
-                  properties:
-                    id:
-                      type: string
-                      example: "123"
-                    name:
-                      type: string
-                      example: "Alice"
-                    user_email:
-                      type: string
-                      format: email
-                      example: "alice@example.com"
+                  $ref: "#/components/schemas/User"
         "500":
           description: เกิดข้อผิดพลาดจากฝั่งเซิร์ฟเวอร์
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "Failed to fetch users"
+                $ref: "#/components/schemas/Error"
 
   /accounts/unlock:
     put:
       summary: Unlock user account
-      description: ปลดล็อกบัญชีผู้ใช้โดยใช้ user ID
-      tags:
-        - User Accounts
+      tags: [User Accounts]
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-                - id
+              required: [id]
               properties:
-                id:
+                user_email:
                   type: string
-                  example: "c54e7a4f-1d03-4f89-a18e-2a5d6f7b9d2b"
       responses:
         "200":
           description: Account unlocked successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserStatus"
+        "400":
+          description: Missing user ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: User not found or unlock failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /incidents:
+    get:
+      summary: ดึงรายชื่อ incidents ทั้งหมด
+      tags: [Incidents]
+      responses:
+        "200":
+          description: รายชื่อ incidents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncidentList"
+        "500":
+          description: เกิดข้อผิดพลาดในการดึงข้อมูล
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /incident:
+    put:
+      summary: ดึง incident ตาม ID (ผ่าน request body)
+      tags: [Incidents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: string
+      responses:
+        "200":
+          description: ข้อมูล incident ตาม ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Incident"
+        "400":
+          description: id ไม่ถูกต้อง
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: เกิดข้อผิดพลาดในการดึงข้อมูล
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /closedAlertStatus:
+    put:
+      summary: ปิด alert_status ของ incident พร้อมเพิ่ม note อัตโนมัติ
+      tags: [Incidents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, alert_status]
+              properties:
+                id:
+                  type: string
+                  example: "incident-001"
+                alert_status:
+                  type: string
+                  enum: [Closed]
+                  example: "Closed"
+      responses:
+        "200":
+          description: อัปเดต alert_status สำเร็จและเพิ่ม note
           content:
             application/json:
               schema:
@@ -74,229 +155,176 @@ paths:
                 properties:
                   id:
                     type: string
-                  user_email:
+                  alert_status:
                     type: string
-                  account_status:
+                  case_result:
                     type: string
-                    example: Active
+                  note:
+                    $ref: "#/components/schemas/Note"
+              example:
+                id: "incident-001"
+                alert_status: "Closed"
+                case_result: "WaitingAnalysis"
+                note:
+                  id: "note-999"
+                  action: "Closed"
+                  content: "Incident was Closed"
+                  created_at: "2025-06-19T10:00:00Z"
         "400":
-          description: Missing user ID
+          description: ข้อมูลไม่ถูกต้อง
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: Missing user ID
-        "404":
-          description: User not found or unlock failed
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: User not found or unlock failed
+                $ref: "#/components/schemas/Error"
+            example:
+              error: "This endpoint only accepts 'Closed' alert_status"
         "500":
-          description: Internal server error
+          description: เกิดข้อผิดพลาด
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: Failed to unlock account
+                $ref: "#/components/schemas/Error"
+            example:
+              error: "Failed to update alert_status or add note"
 
-  /caselist:
-    get:
-      summary: ดูรายการเคสทั้งหมด
+
+  /updateCaseResult:
+    put:
+      summary: อัปเดต case_result ของ incident พร้อมเพิ่ม note อัตโนมัติ
+      tags: [Incidents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, case_result, reason]
+              properties:
+                id:
+                  type: string
+                case_result:
+                  type: string
+                  enum: [WaitingAnalysis, TruePositives, FalsePositives]
+                reason:
+                  type: string
       responses:
         "200":
-          description: รายการเคสทั้งหมดในระบบ
+          description: อัปเดต case_result สำเร็จและเพิ่ม note
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Case"
+                type: object
+                properties:
+                  updated:
+                    $ref: "#/components/schemas/Incident"
+                  note:
+                    $ref: "#/components/schemas/Note"
+        "400":
+          description: ข้อมูลไม่ถูกต้อง
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: เกิดข้อผิดพลาด
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /history:
     get:
-      summary: ดูประวัติการเปลี่ยนแปลงเคสทั้งหมด
+      summary: ดึงประวัติการเปลี่ยนแปลงทั้งหมด
+      tags: [History]
       responses:
         "200":
-          description: รายการประวัติทั้งหมด
+          description: รายการประวัติ
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: "#/components/schemas/HistoryEntry"
-
-  /updateCaseStatus:
-    put:
-      summary: อัปเดตสถานะของเคส
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateCaseStatusInput"
-      responses:
-        "200":
-          description: เคสที่ถูกอัปเดตสถานะ
+        "500":
+          description: เกิดข้อผิดพลาดในการอ่านประวัติ
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Case"
-        "400":
-          description: ข้อมูลไม่ถูกต้อง
-
-  /updateCaseResult:
-    put:
-      summary: อัปเดตผลลัพธ์ของเคส
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateCaseResultInput"
-      responses:
-        "200":
-          description: เคสที่ถูกอัปเดตผลลัพธ์
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Case"
-        "400":
-          description: ข้อมูลไม่ถูกต้อง
-
-  /deleteCase:
-    delete:
-      summary: ลบเคส
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/DeleteCaseInput"
-      responses:
-        "200":
-          description: เคสที่ถูกลบ
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Case"
-        "400":
-          description: ข้อมูลไม่ถูกต้อง
-        "404":
-          description: ไม่พบเคสที่ต้องการลบ
+                $ref: "#/components/schemas/Error"
 
 components:
   schemas:
-    Case:
+    User:
       type: object
       properties:
-        token:
+        id:
           type: string
-          example: "testtoken"
-        case_id:
+        name:
+          type: string
+        user_email:
+          type: string
+
+    UserStatus:
+      type: object
+      properties:
+        id:
+          type: string
+        user_email:
+          type: string
+        account_status:
+          type: string
+
+    IncidentList:
+      type: object
+      properties:
+        incidents:
           type: array
           items:
-            type: string
-          example: ["case123", "case456"]
-        case_status:
+            $ref: "#/components/schemas/Incident"
+
+    Incident:
+      type: object
+      properties:
+        id:
           type: string
-          enum: [Opened, Closed]
-          nullable: true
-          example: "Opened"
+        alert_id:
+          type: string
+        alert_name:
+          type: string
+        alert_status:
+          type: string
         case_result:
           type: string
-          enum: [WaitingAnalysis, TruePositives, FalsePositives]
-          nullable: true
-          example: "TruePositives"
-        timestamp:
+        notes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Note"
+
+    Note:
+      type: object
+      properties:
+        id:
+          type: string
+        action:
+          type: string
+        content:
+          type: string
+        created_at:
           type: string
           format: date-time
-          example: "2025-06-17T10:30:00Z"
 
     HistoryEntry:
       type: object
       properties:
-        timestamp:
-          type: string
-          format: date-time
-          example: "2025-06-17T10:30:00Z"
         action:
           type: string
-          example: "addCase"
         case:
-          $ref: "#/components/schemas/Case"
+          oneOf:
+            - $ref: "#/components/schemas/Incident"
+            - $ref: "#/components/schemas/Note"
 
-    UpdateCaseStatusInput:
+    Error:
       type: object
-      required:
-        - token
-        - case_id
-        - case_status
       properties:
-        token:
+        error:
           type: string
-          example: "testtoken"
-        case_id:
-          type: array
-          items:
-            type: string
-          example: ["case123", "case456"]
-        case_status:
-          type: string
-          enum: [Opened, Closed]
-          example: "Opened"
-
-    UpdateCaseResultInput:
-      type: object
-      required:
-        - token
-        - case_id
-        - case_result
-        - reason
-      properties:
-        token:
-          type: string
-          example: "testtoken"
-        case_id:
-          type: array
-          items:
-            type: string
-          example: ["case123", "case456"]
-        case_result:
-          type: string
-          enum: [WaitingAnalysis, TruePositives, FalsePositives]
-          example: "TruePositives"
-        reason:
-          type: string
-          example: "some reason"
-
-    DeleteCaseInput:
-      type: object
-      required:
-        - token
-        - case_id
-      properties:
-        token:
-          type: string
-          example: "testtoken"
-        case_id:
-          type: array
-          items:
-            type: string
-          example: ["case123", "case456"]

@@ -1,1 +1,77 @@
-[]
+[
+  {
+    "action": "updateAlertStatus",
+    "case": {
+      "id": "1935efba-8eae-41cf-a298-70185529ad6e",
+      "alert_id": "CYD-2406-000005",
+      "alert_name": "Unusual network activity from host Cy-CLI03",
+      "alert_status": "Closed",
+      "case_result": "TruePositives"
+    }
+  },
+  {
+    "action": "addNote",
+    "case": {
+      "id": "62f55e0e-1f2b-4ca6-b112-809ce51cb52e",
+      "action": "Closed",
+      "content": "Incident was Closed"
+    }
+  },
+  {
+    "action": "updateCaseResult",
+    "case": {
+      "id": "1935efba-8eae-41cf-a298-70185529ad6e",
+      "alert_id": "CYD-2406-000005",
+      "alert_name": "Unusual network activity from host Cy-CLI03",
+      "alert_status": "Closed",
+      "case_result": "WaitingAnalysis",
+      "reason": "string"
+    }
+  },
+  {
+    "action": "addNote",
+    "case": {
+      "id": "6c91cce0-36c8-4872-8376-399065491671",
+      "action": "Re-Investigated",
+      "content": "string"
+    }
+  },
+  {
+    "action": "updateCaseResult",
+    "case": {
+      "id": "1935efba-8eae-41cf-a298-70185529ad6e",
+      "alert_id": "CYD-2406-000005",
+      "alert_name": "Unusual network activity from host Cy-CLI03",
+      "alert_status": "Closed",
+      "case_result": "TruePositives",
+      "reason": "string"
+    }
+  },
+  {
+    "action": "addNote",
+    "case": {
+      "id": "f508bcda-d90b-49f2-81be-3c757423d49f",
+      "action": "Re-Investigated",
+      "content": "string"
+    }
+  },
+  {
+    "action": "updateCaseResult",
+    "case": {
+      "id": "1935efba-8eae-41cf-a298-70185529ad6e",
+      "alert_id": "CYD-2406-000005",
+      "alert_name": "Unusual network activity from host Cy-CLI03",
+      "alert_status": "Closed",
+      "case_result": "FalsePositives",
+      "reason": "string"
+    }
+  },
+  {
+    "action": "addNote",
+    "case": {
+      "id": "025218ec-316d-42e5-8969-469fff883df6",
+      "action": "Re-Investigated",
+      "content": "string"
+    }
+  }
+]
