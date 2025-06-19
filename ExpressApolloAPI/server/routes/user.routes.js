@@ -1,3 +1,4 @@
+// routes/user.routes.js
 const express = require("express");
 const router = express.Router();
 const { request } = require("graphql-request");
@@ -5,28 +6,28 @@ const { USERS_QUERY } = require("../graphql/queries");
 const { UPDATE_USER_STATUS } = require("../graphql/mutation.js");
 const { GRAPHQL_ENDPOINT, TOKEN } = require("../config/apollo.config.js");
 const { requireUserEmail } = require("../middleware/authMiddleware");
-const { appendHistory } = require("../utils/history");
+const { appendHistory } = require("../utils/history"); // ✅ เปลี่ยน path ถ้าคุณแยกออก
 
 // ===================
 // GET: รายชื่อผู้ใช้ทั้งหมด
 // ===================
-router.get("/users", requireUserEmail, async (req, res) => {
-  const headers = {
-    Authorization: `Bearer ${TOKEN}`,
-  };
+// router.get("/users", requireUserEmail, async (req, res) => {
+//   const headers = {
+//     Authorization: `Bearer ${TOKEN}`,
+//   };
 
-  try {
-    const data = await request({
-      url: GRAPHQL_ENDPOINT,
-      document: USERS_QUERY,
-      variables: {},
-      requestHeaders: headers,
-    });
-    res.json(data);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch users" });
-  }
-});
+//   try {
+//     const data = await request({
+//       url: GRAPHQL_ENDPOINT,
+//       document: USERS_QUERY,
+//       variables: {},
+//       requestHeaders: headers,
+//     });
+//     res.json(data);
+//   } catch (error) {
+//     res.status(500).json({ error: "Failed to fetch users" });
+//   }
+// });
 
 // ===================
 // PUT: ปลดล็อกบัญชีผู้ใช้ตาม user_email
@@ -34,10 +35,11 @@ router.get("/users", requireUserEmail, async (req, res) => {
 router.put("/unlock", requireUserEmail, async (req, res) => {
   const { user_email } = req.body;
   const context = {
-    user_email: req.user_email, // แก้จาก req.userEmail เป็น req.user_email
-    user_agent: req.userAgent,
-    ip_address: req.userIP,
+    user_email: req.user?.user_email || "unknown",
+    user_agent: req.user?.user_agent || "unknown",
+    ip_address: req.user?.ip_address || "unknown",
   };
+
 
   if (
     !user_email ||
@@ -86,21 +88,21 @@ router.put("/unlock", requireUserEmail, async (req, res) => {
       return res.status(404).json({ error: "Unlock failed or user not found" });
     }
 
-    // 4. บันทึกประวัติ
+
+    // ✅ 4. บันทึกประวัติแบบ before/after + authentication structure
     appendHistory(
       "unlockUser",
       [
         {
-          id: unlockedUser.id,
-          name: unlockedUser.name,
-          user_email: unlockedUser.user_email,
+          id: String(id),
+          name: String(name),
+          user_email: String(user_email),
           status_before: account_status,
           status_after: unlockedUser.account_status,
         },
       ],
-      context
+      req.user
     );
-
     res.json(unlockedUser);
   } catch (error) {
     console.error("❌ Failed to unlock account:", error);

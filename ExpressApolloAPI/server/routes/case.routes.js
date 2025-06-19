@@ -15,60 +15,56 @@ const { requireUserEmail } = require("../middleware/authMiddleware");
 const VALID_RESULTS = ["WaitingAnalysis", "TruePositives", "FalsePositives"];
 const HISTORY_FILE_PATH = path.join(__dirname, "../data/history.json");
 
-// Middleware ให้ดึง user_email จาก header และใส่ใน req.user_email
-// สมมติว่า requireUserEmail ทำหน้าที่นี้แล้ว
-
 // ===================
 // GET: รายชื่อเคสทั้งหมด
 // ===================
-router.get("/incidents", requireUserEmail, async (req, res) => {
-  const headers = { Authorization: `Bearer ${TOKEN}` };
-  try {
-    const data = await request({
-      url: GRAPHQL_ENDPOINT,
-      document: GET_INCIDENTS,
-      variables: {},
-      requestHeaders: headers,
-    });
-    res.json(data);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Failed to fetch INCIDENTS" });
-  }
-});
+// router.get("/incidents", requireUserEmail, async (req, res) => {
+//   const headers = { Authorization: `Bearer ${TOKEN}` };
+//   try {
+//     const data = await request({
+//       url: GRAPHQL_ENDPOINT,
+//       document: GET_INCIDENTS,
+//       variables: {},
+//       requestHeaders: headers,
+//     });
+//     res.json(data);
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ error: "Failed to fetch INCIDENTS" });
+//   }
+// });
 
 // ===================
 // PUT: ดึง incident ตาม ID
 // ===================
-router.put("/incident", requireUserEmail, async (req, res) => {
-  const { id } = req.body;
-  if (!id || typeof id !== "string" || id.trim() === "") {
-    return res
-      .status(400)
-      .json({ error: "Invalid or missing 'id' in request body" });
-  }
+// router.put("/incident", requireUserEmail, async (req, res) => {
+//   const { id } = req.body;
+//   if (!id || typeof id !== "string" || id.trim() === "") {
+//     return res
+//       .status(400)
+//       .json({ error: "Invalid or missing 'id' in request body" });
+//   }
 
-  const headers = { Authorization: `Bearer ${TOKEN}` };
-  try {
-    const data = await request({
-      url: GRAPHQL_ENDPOINT,
-      document: GET_INCIDENT_BY_ID,
-      variables: { id },
-      requestHeaders: headers,
-    });
-    res.json(data);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Failed to fetch incident by ID" });
-  }
-});
+//   const headers = { Authorization: `Bearer ${TOKEN}` };
+//   try {
+//     const data = await request({
+//       url: GRAPHQL_ENDPOINT,
+//       document: GET_INCIDENT_BY_ID,
+//       variables: { id },
+//       requestHeaders: headers,
+//     });
+//     res.json(data);
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ error: "Failed to fetch incident by ID" });
+//   }
+// });
 
 // ===================
 // PUT: ปิด alert_status ของ incident พร้อมเพิ่ม note อัตโนมัติ
 // ===================
 router.put("/closedAlertStatus", requireUserEmail, async (req, res) => {
   const { id, alert_status } = req.body;
-  const userEmail = req.user_email; // ชื่อตรงกับ middleware
 
   if (!id || typeof id !== "string" || id.trim() === "") {
     return res.status(400).json({ error: "Invalid or missing 'id'" });
@@ -83,7 +79,18 @@ router.put("/closedAlertStatus", requireUserEmail, async (req, res) => {
   try {
     const headers = { Authorization: `Bearer ${TOKEN}` };
 
-    // Update alert_status to "Closed"
+    // ดึงข้อมูล incident เดิม
+    const existingIncidentData = await request({
+      url: GRAPHQL_ENDPOINT,
+      document: GET_INCIDENT_BY_ID,
+      variables: { id },
+      requestHeaders: headers,
+    });
+
+    const oldStatus = existingIncidentData.incident?.alert_status || "unknown";
+    const name = existingIncidentData.incident?.alert_name || "unknown";
+
+    // อัพเดต alert_status เป็น "Closed"
     const updateVars = {
       id,
       input: [{ key: "alert_status", value: ["Closed"], operation: "replace" }],
@@ -96,22 +103,21 @@ router.put("/closedAlertStatus", requireUserEmail, async (req, res) => {
       requestHeaders: headers,
     });
 
-    // บันทึกประวัติพร้อม user_email, user_agent, ip_address
+    // บันทึกประวัติ update alert_status โดยใช้ข้อมูลจาก req.user
     appendHistory(
       "updateAlertStatus",
       [
         {
-          ...updateResponse.incidentEdit.fieldPatch,
+          id,
+          name,
+          status_before: oldStatus,
+          status_after: updateResponse.incidentEdit.fieldPatch.alert_status,
         },
       ],
-      {
-        user_email: userEmail,
-        user_agent: req.userAgent,
-        ip_address: req.userIP,
-      }
+      req.user
     );
 
-    // Add note with NOTE_ADD_MUTATION
+    // เพิ่มโน้ตแจ้งว่าเคสถูกปิด
     const noteVars = {
       input: {
         action: "Closed",
@@ -127,6 +133,7 @@ router.put("/closedAlertStatus", requireUserEmail, async (req, res) => {
       requestHeaders: headers,
     });
 
+    // บันทึกประวัติการเพิ่มโน้ต
     appendHistory(
       "addNote",
       [
@@ -134,11 +141,7 @@ router.put("/closedAlertStatus", requireUserEmail, async (req, res) => {
           ...noteResponse.noteAdd,
         },
       ],
-      {
-        user_email: userEmail,
-        user_agent: req.userAgent,
-        ip_address: req.userIP,
-      }
+      req.user
     );
 
     res.json({
@@ -159,12 +162,10 @@ router.put("/closedAlertStatus", requireUserEmail, async (req, res) => {
 });
 
 // ===================
-// PUT: เปลี่ยน CaseResult ของ incident พร้อมเพิ่ม note อัตโนมัติ
+// PUT: เปลี่ยน CaseResult ของ incident พร้อมเพิ่ม note อัตโนมัติ (เก็บ old result)
 // ===================
-
 router.put("/updateCaseResult", requireUserEmail, async (req, res) => {
   const { id, case_result, reason } = req.body;
-  const userEmail = req.user_email; // ชื่อตรงกับ middleware
 
   if (!id || typeof id !== "string" || id.trim() === "") {
     return res.status(400).json({ error: "Invalid or missing 'id'" });
@@ -181,7 +182,18 @@ router.put("/updateCaseResult", requireUserEmail, async (req, res) => {
   try {
     const headers = { Authorization: `Bearer ${TOKEN}` };
 
-    // Update case_result
+    // ดึงข้อมูล incident เดิม
+    const existingIncidentData = await request({
+      url: GRAPHQL_ENDPOINT,
+      document: GET_INCIDENT_BY_ID,
+      variables: { id },
+      requestHeaders: headers,
+    });
+
+    const oldResult = existingIncidentData.incident?.case_result || "unknown";
+    const name = existingIncidentData.incident?.alert_name || "unknown";
+
+    // อัพเดต case_result
     const updateVars = {
       id,
       input: [
@@ -195,18 +207,22 @@ router.put("/updateCaseResult", requireUserEmail, async (req, res) => {
       requestHeaders: headers,
     });
 
-    const updatedCase = {
-      ...updateResponse.incidentEdit.fieldPatch,
-      reason,
-    };
+    // บันทึกประวัติการเปลี่ยนแปลง case_result
+    appendHistory(
+      "updateCaseResult",
+      [
+        {
+          id,
+          name,
+          result_before: oldResult,
+          result_after: updateResponse.incidentEdit.fieldPatch.case_result,
+          reason,
+        },
+      ],
+      req.user
+    );
 
-    appendHistory("updateCaseResult", [updatedCase], {
-      user_email: userEmail,
-      user_agent: req.userAgent,
-      ip_address: req.userIP,
-    });
-
-    // Add note with NOTE_ADD_MUTATION
+    // เพิ่มโน้ตแจ้งการแก้ไข
     const noteVars = {
       input: {
         action: "Re-Investigated",
@@ -222,6 +238,7 @@ router.put("/updateCaseResult", requireUserEmail, async (req, res) => {
       requestHeaders: headers,
     });
 
+    // บันทึกประวัติการเพิ่มโน้ต
     appendHistory(
       "addNote",
       [
@@ -229,19 +246,19 @@ router.put("/updateCaseResult", requireUserEmail, async (req, res) => {
           ...noteResponse.noteAdd,
         },
       ],
-      {
-        user_email: userEmail,
-        user_agent: req.userAgent,
-        ip_address: req.userIP,
-      }
+      req.user
     );
 
-    res.json({ ...updatedCase, note: noteResponse.noteAdd });
+    res.json({
+      ...updateResponse.incidentEdit.fieldPatch,
+      note: noteResponse.noteAdd,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Failed to update case_result or add note" });
   }
 });
+
 // ===================
 // GET: ประวัติทั้งหมด (อ่านจาก history.json)
 // ===================
