@@ -1,5 +1,6 @@
 const express = require('express');
 const app = express();
+const cors = require('cors');
 const fs = require('fs'); 
 const YAML = require('yamljs');
 const swaggerUi = require('swagger-ui-express');
@@ -10,6 +11,9 @@ const userRoutes = require('./routes/user.routes.js');
 
 
 const port = 4000;
+
+
+app.use(cors());
 
 // โหลด Swagger
 const swaggerPath = path.resolve(__dirname, 'config', 'swagger.yaml');
