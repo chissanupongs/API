@@ -14,248 +14,296 @@ const { requireUserEmail } = require("../middleware/authMiddleware");
 
 const VALID_RESULTS = ["WaitingAnalysis", "TruePositives", "FalsePositives"];
 const HISTORY_FILE_PATH = path.join(__dirname, "../data/history.json");
-
-// Middleware ให้ดึง user_email จาก header และใส่ใน req.user_email
-// สมมติว่า requireUserEmail ทำหน้าที่นี้แล้ว
+const headers = { Authorization: `Bearer ${TOKEN}` };
 
 // ===================
 // GET: รายชื่อเคสทั้งหมด
 // ===================
-router.get("/incidents", requireUserEmail, async (req, res) => {
-  const headers = { Authorization: `Bearer ${TOKEN}` };
-  try {
-    const data = await request({
-      url: GRAPHQL_ENDPOINT,
-      document: GET_INCIDENTS,
-      variables: {},
-      requestHeaders: headers,
-    });
-    res.json(data);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Failed to fetch INCIDENTS" });
-  }
-});
+// router.get("/incidents", requireUserEmail, async (req, res) => {
+//   const headers = { Authorization: `Bearer ${TOKEN}` };
+//   try {
+//     const data = await request({
+//       url: GRAPHQL_ENDPOINT,
+//       document: GET_INCIDENTS,
+//       variables: {},
+//       requestHeaders: headers,
+//     });
+//     res.json(data);
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ error: "Failed to fetch INCIDENTS" });
+//   }
+// });
 
 // ===================
 // PUT: ดึง incident ตาม ID
 // ===================
-router.put("/incident", requireUserEmail, async (req, res) => {
-  const { id } = req.body;
-  if (!id || typeof id !== "string" || id.trim() === "") {
-    return res
-      .status(400)
-      .json({ error: "Invalid or missing 'id' in request body" });
-  }
+// router.put("/incident", requireUserEmail, async (req, res) => {
+//   const { id } = req.body;
+//   if (!id || typeof id !== "string" || id.trim() === "") {
+//     return res
+//       .status(400)
+//       .json({ error: "Invalid or missing 'id' in request body" });
+//   }
 
-  const headers = { Authorization: `Bearer ${TOKEN}` };
-  try {
-    const data = await request({
-      url: GRAPHQL_ENDPOINT,
-      document: GET_INCIDENT_BY_ID,
-      variables: { id },
-      requestHeaders: headers,
-    });
-    res.json(data);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Failed to fetch incident by ID" });
-  }
-});
+//   const headers = { Authorization: `Bearer ${TOKEN}` };
+//   try {
+//     const data = await request({
+//       url: GRAPHQL_ENDPOINT,
+//       document: GET_INCIDENT_BY_ID,
+//       variables: { id },
+//       requestHeaders: headers,
+//     });
+//     res.json(data);
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ error: "Failed to fetch incident by ID" });
+//   }
+// });
 
-// ===================
-// PUT: ปิด alert_status ของ incident พร้อมเพิ่ม note อัตโนมัติ
-// ===================
+// ==========================
+// PUT /closedAlertStatus
+// ==========================
 router.put("/closedAlertStatus", requireUserEmail, async (req, res) => {
-  const { id, alert_status } = req.body;
-  const userEmail = req.user_email; // ชื่อตรงกับ middleware
+  let incidents = req.body.incidents;
 
-  if (!id || typeof id !== "string" || id.trim() === "") {
-    return res.status(400).json({ error: "Invalid or missing 'id'" });
-  }
-
-  if (alert_status !== "Closed") {
-    return res
-      .status(400)
-      .json({ error: "This endpoint only accepts 'Closed' alert_status" });
-  }
-
-  try {
-    const headers = { Authorization: `Bearer ${TOKEN}` };
-
-    // Update alert_status to "Closed"
-    const updateVars = {
-      id,
-      input: [{ key: "alert_status", value: ["Closed"], operation: "replace" }],
-    };
-
-    const updateResponse = await request({
-      url: GRAPHQL_ENDPOINT,
-      document: INCIDENT_EDIT_MUTATION,
-      variables: updateVars,
-      requestHeaders: headers,
-    });
-
-    // บันทึกประวัติพร้อม user_email, user_agent, ip_address
-    appendHistory(
-      "updateAlertStatus",
-      [
-        {
-          ...updateResponse.incidentEdit.fieldPatch,
-        },
-      ],
-      {
-        user_email: userEmail,
-        user_agent: req.userAgent,
-        ip_address: req.userIP,
-      }
-    );
-
-    // Add note with NOTE_ADD_MUTATION
-    const noteVars = {
-      input: {
-        action: "Closed",
-        content: "Incident was Closed",
-        objects: [id],
-      },
-    };
-
-    const noteResponse = await request({
-      url: GRAPHQL_ENDPOINT,
-      document: NOTE_ADD_MUTATION,
-      variables: noteVars,
-      requestHeaders: headers,
-    });
-
-    appendHistory(
-      "addNote",
-      [
-        {
-          ...noteResponse.noteAdd,
-        },
-      ],
-      {
-        user_email: userEmail,
-        user_agent: req.userAgent,
-        ip_address: req.userIP,
-      }
-    );
-
-    res.json({
-      ...updateResponse.incidentEdit.fieldPatch,
-      note: noteResponse.noteAdd,
-    });
-  } catch (error) {
-    console.error("❌ Error updating alert_status or adding note:");
-    if (error.response?.errors) {
-      console.error("GraphQL Errors:", error.response.errors);
+  // รองรับ single object
+  if (!Array.isArray(incidents)) {
+    const { id, alert_status } = req.body;
+    if (id && alert_status) {
+      incidents = [{ id, alert_status }];
     } else {
-      console.error("Raw Error:", error.message || error);
+      return res.status(400).json({ error: "Missing 'id' or 'alert_status'" });
     }
-    res
-      .status(500)
-      .json({ error: "Failed to update alert_status or add note" });
-  }
-});
-
-// ===================
-// PUT: เปลี่ยน CaseResult ของ incident พร้อมเพิ่ม note อัตโนมัติ
-// ===================
-
-router.put("/updateCaseResult", requireUserEmail, async (req, res) => {
-  const { id, case_result, reason } = req.body;
-  const userEmail = req.user_email; // ชื่อตรงกับ middleware
-
-  if (!id || typeof id !== "string" || id.trim() === "") {
-    return res.status(400).json({ error: "Invalid or missing 'id'" });
   }
 
-  if (!case_result || !VALID_RESULTS.includes(case_result)) {
-    return res.status(400).json({ error: "Invalid 'case_result'" });
+  if (incidents.length === 0) {
+    return res.status(400).json({ error: "No incident data provided" });
   }
 
-  if (!reason || typeof reason !== "string" || reason.trim() === "") {
-    return res.status(400).json({ error: "Missing or invalid 'reason'" });
-  }
+  const results = [];
 
-  try {
-    const headers = { Authorization: `Bearer ${TOKEN}` };
+  for (const { id, alert_status } of incidents) {
+    if (!id || typeof id !== "string" || alert_status !== "Closed") {
+      results.push({ id, error: "Invalid id or alert_status" });
+      continue;
+    }
 
-    // Update case_result
-    const updateVars = {
-      id,
-      input: [
-        { key: "case_result", value: [case_result], operation: "replace" },
-      ],
-    };
-    const updateResponse = await request({
-      url: GRAPHQL_ENDPOINT,
-      document: INCIDENT_EDIT_MUTATION,
-      variables: updateVars,
-      requestHeaders: headers,
-    });
+    try {
+      const existingIncidentData = await request({
+        url: GRAPHQL_ENDPOINT,
+        document: GET_INCIDENT_BY_ID,
+        variables: { id },
+        requestHeaders: headers,
+      });
 
-    const updatedCase = {
-      ...updateResponse.incidentEdit.fieldPatch,
-      reason,
-    };
+      const oldStatus = existingIncidentData.incident?.alert_status || "unknown";
+      const name = existingIncidentData.incident?.alert_name || "unknown";
 
-    appendHistory("updateCaseResult", [updatedCase], {
-      user_email: userEmail,
-      user_agent: req.userAgent,
-      ip_address: req.userIP,
-    });
+      const updateVars = {
+        id,
+        input: [{ key: "alert_status", value: ["Closed"], operation: "replace" }],
+      };
 
-    // Add note with NOTE_ADD_MUTATION
-    const noteVars = {
-      input: {
-        action: "Re-Investigated",
-        content: reason,
-        objects: [id],
-      },
-    };
+      const updateResponse = await request({
+        url: GRAPHQL_ENDPOINT,
+        document: INCIDENT_EDIT_MUTATION,
+        variables: updateVars,
+        requestHeaders: headers,
+      });
 
-    const noteResponse = await request({
-      url: GRAPHQL_ENDPOINT,
-      document: NOTE_ADD_MUTATION,
-      variables: noteVars,
-      requestHeaders: headers,
-    });
+      appendHistory(
+        "updateAlertStatus",
+        [
+          {
+            id,
+            name,
+            status_before: oldStatus,
+            status_after: updateResponse.incidentEdit.fieldPatch.alert_status,
+          },
+        ],
+        req.user
+      );
 
-    appendHistory(
-      "addNote",
-      [
-        {
-          ...noteResponse.noteAdd,
+      const noteVars = {
+        input: {
+          action: "Closed",
+          content: "Incident was Closed",
+          objects: id,
         },
-      ],
-      {
-        user_email: userEmail,
-        user_agent: req.userAgent,
-        ip_address: req.userIP,
-      }
-    );
+      };
 
-    res.json({ ...updatedCase, note: noteResponse.noteAdd });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Failed to update case_result or add note" });
+      const noteResponse = await request({
+        url: GRAPHQL_ENDPOINT,
+        document: NOTE_ADD_MUTATION,
+        variables: noteVars,
+        requestHeaders: headers,
+      });
+
+      appendHistory("addNote", [{ ...noteResponse.noteAdd }], req.user);
+
+      results.push({
+        id,
+        updated: true,
+        alert_status: updateResponse.incidentEdit.fieldPatch.alert_status,
+        note: noteResponse.noteAdd,
+      });
+    } catch (err) {
+      console.error(`❌ Failed for incident ID: ${id}`, err);
+      results.push({ id, error: "Failed to update" });
+    }
   }
+
+  res.json({ results });
 });
+
+// ==========================
+// PUT /updateCaseResult
+// ==========================
+router.put("/updateCaseResult", requireUserEmail, async (req, res) => {
+  let incidents = req.body.incidents;
+
+  // รองรับ single object
+  if (!Array.isArray(incidents)) {
+    const { id, case_result, reason } = req.body;
+    if (id && case_result && reason) {
+      incidents = [{ id, case_result, reason }];
+    } else {
+      return res.status(400).json({ error: "Missing 'id', 'case_result' or 'reason'" });
+    }
+  }
+
+  if (incidents.length === 0) {
+    return res.status(400).json({ error: "No incident data provided" });
+  }
+
+  const results = [];
+
+  for (const { id, case_result, reason } of incidents) {
+    if (!id || typeof id !== "string") {
+      results.push({ id, error: "Invalid or missing 'id'" });
+      continue;
+    }
+
+    if (!VALID_RESULTS.includes(case_result)) {
+      results.push({ id, error: "Invalid 'case_result'" });
+      continue;
+    }
+
+    if (!reason || typeof reason !== "string" || reason.trim() === "") {
+      results.push({ id, error: "Missing or invalid 'reason'" });
+      continue;
+    }
+
+    try {
+      const existingIncidentData = await request({
+        url: GRAPHQL_ENDPOINT,
+        document: GET_INCIDENT_BY_ID,
+        variables: { id },
+        requestHeaders: headers,
+      });
+
+      const oldResult = existingIncidentData.incident?.case_result || "unknown";
+      const name = existingIncidentData.incident?.alert_name || "unknown";
+
+      const updateVars = {
+        id,
+        input: [{ key: "case_result", value: [case_result], operation: "replace" }],
+      };
+
+      const updateResponse = await request({
+        url: GRAPHQL_ENDPOINT,
+        document: INCIDENT_EDIT_MUTATION,
+        variables: updateVars,
+        requestHeaders: headers,
+      });
+
+      appendHistory(
+        "updateCaseResult",
+        [
+          {
+            id,
+            name,
+            result_before: oldResult,
+            result_after: updateResponse.incidentEdit.fieldPatch.case_result,
+            reason,
+          },
+        ],
+        req.user
+      );
+
+      const noteVars = {
+        input: {
+          action: "Re-Investigated",
+          content: reason,
+          objects: id,
+        },
+      };
+
+      const noteResponse = await request({
+        url: GRAPHQL_ENDPOINT,
+        document: NOTE_ADD_MUTATION,
+        variables: noteVars,
+        requestHeaders: headers,
+      });
+
+      appendHistory("addNote", [{ ...noteResponse.noteAdd }], req.user);
+
+      results.push({
+        id,
+        updated: true,
+        case_result: updateResponse.incidentEdit.fieldPatch.case_result,
+        note: noteResponse.noteAdd,
+      });
+    } catch (err) {
+      console.error(`❌ Failed for incident ID: ${id}`, err);
+      results.push({ id, error: "Failed to update" });
+    }
+  }
+
+  res.json({ results });
+});
+
 // ===================
 // GET: ประวัติทั้งหมด (อ่านจาก history.json)
 // ===================
-router.get("/history", requireUserEmail, (req, res) => {
+const fsPromises = require("fs").promises;
+
+router.get("/history", requireUserEmail, async (req, res) => {
+  const historyDir = path.join(__dirname, "../data");
+
   try {
-    if (fs.existsSync(HISTORY_FILE_PATH)) {
-      const fileContent = fs.readFileSync(HISTORY_FILE_PATH, "utf-8");
-      res.json(fileContent ? JSON.parse(fileContent) : []);
-    } else {
-      res.json([]);
+    // อ่านชื่อไฟล์ในโฟลเดอร์ data
+    const files = await fsPromises.readdir(historyDir);
+
+    // กรองเฉพาะไฟล์ที่ขึ้นต้นด้วย 'history-' และลงท้ายด้วย .json
+    const historyFiles = files.filter(f => f.startsWith("history-") && f.endsWith(".json"));
+
+    let allEntries = [];
+
+    // อ่านข้อมูลจากไฟล์ history แต่ละไฟล์
+    for (const file of historyFiles) {
+      try {
+        const content = await fsPromises.readFile(path.join(historyDir, file), "utf-8");
+        if (content) {
+          const parsed = JSON.parse(content);
+          if (Array.isArray(parsed)) {
+            allEntries = allEntries.concat(parsed);
+          } else {
+            console.warn(`File ${file} does not contain an array, skipping`);
+          }
+        }
+      } catch (err) {
+        console.error(`Error reading/parsing ${file}:`, err);
+        // ถ้าไฟล์ใดอ่านไม่ได้ก็ข้าม ไม่ส่ง error กลับ client
+      }
     }
+
+    res.json(allEntries);
+
   } catch (err) {
-    console.error("Error reading history file:", err);
-    res.status(500).json({ error: "Failed to read history file" });
+    console.error("Failed to read history files:", err);
+    res.status(500).json({ error: "Failed to read history files" });
   }
 });
 

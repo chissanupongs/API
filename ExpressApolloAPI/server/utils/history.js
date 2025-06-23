@@ -1,20 +1,13 @@
 const fs = require("fs");
+const fsp = fs.promises;
 const path = require("path");
 
-// กำหนด path ของไฟล์ history.json
-const HISTORY_FILE_PATH = path.join(__dirname, "../data/history.json");
-
-// ✅ (Optional) เคลียร์ไฟล์ history.json ตอนเริ่มต้น server
-try {
-  fs.writeFileSync(HISTORY_FILE_PATH, "[]", "utf-8");
-  console.log("✅ Cleared history.json on startup");
-} catch (err) {
-  console.error("❌ Failed to clear history.json:", err);
-}
+// Queue สำหรับป้องกัน race condition
+let writeQueue = Promise.resolve();
 
 /**
- * Normalize IP address เช่น ::1 → 127.0.0.1
- * @param {string} ip
+ * แปลง IP ::1 เป็น 127.0.0.1
+ * @param {string} ip 
  * @returns {string}
  */
 const normalizeIP = (ip) => {
@@ -23,45 +16,90 @@ const normalizeIP = (ip) => {
 };
 
 /**
- * ฟังก์ชันเพิ่ม log ประวัติลงในไฟล์ history.json
- * @param {string} action - ชื่อ action เช่น "updateAlertStatus", "addNote" เป็นต้น
- * @param {Array} entries - ข้อมูลเคส หรือโน้ตที่ต้องการบันทึก
- * @param {Object} context - ข้อมูลผู้ใช้ เช่น { user_email, user_agent, ip_address }
+ * คืนชื่อไฟล์ตามวันที่ปัจจุบัน เช่น history-22-06-2568.json
+ * @returns {string}
  */
-const appendHistory = (action, entries, context = {}) => {
-  let history = [];
-
-  try {
-    if (fs.existsSync(HISTORY_FILE_PATH)) {
-      const raw = fs.readFileSync(HISTORY_FILE_PATH, "utf-8");
-      history = raw ? JSON.parse(raw) : [];
-    }
-  } catch (err) {
-    console.error("❌ Error reading history file:", err.message);
-  }
-
-  const {
-    user_email = "unknown",
-    user_agent = "unknown",
-    ip_address = "unknown",
-  } = context;
-
-  const newEntries = entries.map((entry) => ({
-    authentication: user_email,
-    user_agent,
-    ip_address: normalizeIP(ip_address),
-    action,
-    case: entry,
-  }));
-
-  history.push(...newEntries);
-
-  try {
-    fs.writeFileSync(HISTORY_FILE_PATH, JSON.stringify(history, null, 2));
-    console.log("✅ History updated");
-  } catch (err) {
-    console.error("❌ Error writing history file:", err.message);
-  }
+const getHistoryFilePath = () => {
+  const now = new Date();
+  const dd = String(now.getDate()).padStart(2, "0");
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const yyyy = now.getFullYear() + 543; // แปลงเป็น พ.ศ.
+  const fileName = `history-${dd}-${mm}-${yyyy}.json`;
+  return path.join(__dirname, "../data", fileName);
 };
 
-module.exports = { appendHistory };
+/**
+ * บันทึก log การกระทำต่างๆ พร้อม context ผู้ใช้งาน
+ * @param {string} action 
+ * @param {Array} entries 
+ * @param {Object} context 
+ */
+const appendHistory = (action, entries, context = {}) => {
+  if (!Array.isArray(entries)) {
+    console.error("appendHistory: entries is not an array");
+    return;
+  }
+
+  writeQueue = writeQueue.then(async () => {
+    const filePath = getHistoryFilePath();
+    let history = [];
+
+    // สร้างโฟลเดอร์ถ้ายังไม่มี
+    try {
+      await fsp.mkdir(path.dirname(filePath), { recursive: true });
+    } catch (mkdirErr) {
+      console.error("❌ Failed to create history folder:", mkdirErr.message);
+    }
+
+    // อ่านข้อมูลเดิม
+    try {
+      const raw = await fsp.readFile(filePath, "utf-8");
+      try {
+        history = raw ? JSON.parse(raw) : [];
+      } catch (parseErr) {
+        console.error("❌ Error parsing history file:", parseErr.message);
+      }
+    } catch (err) {
+      if (err.code !== "ENOENT") {
+        console.error("❌ Error reading history file:", err.message);
+      }
+    }
+
+    const {
+      user_email = "unknown",
+      name = "unknown",
+      id = "unknown",
+      user_agent = "unknown",
+      ip_address = "unknown",
+    } = context;
+
+    const timestamp = new Date().toISOString();
+
+    const newEntries = entries.map((entry) => ({
+      authentication: { user_email, name, id },
+      user_agent,
+      ip_address: normalizeIP(ip_address),
+      action,
+      case: entry,
+      timestamp,
+    }));
+
+    history.push(...newEntries);
+
+    // เขียนใหม่แบบ pretty JSON
+    try {
+      await fsp.writeFile(filePath, JSON.stringify(history, null, 2), "utf-8");
+      console.log(`✅ History saved: ${filePath}`);
+    } catch (writeErr) {
+      console.error("❌ Error writing history file:", writeErr.message);
+    }
+  }).catch((queueErr) => {
+    console.error("❌ appendHistory queue error:", queueErr.message);
+  });
+};
+
+module.exports = {
+  appendHistory,
+  normalizeIP,
+  getHistoryFilePath,
+};

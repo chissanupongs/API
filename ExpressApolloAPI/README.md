@@ -34,3 +34,42 @@ ExpressApolloAPI/
 | `server/config/swagger.yaml`            | เขียน spec ของ Swagger API สำหรับ Swagger UI                            |
 | `server/middleware/`                    | เพิ่ม middleware เช่น ตรวจสอบ token, จัดการ error                       |
 | `server/utils/`                         | เก็บ helper function เช่น logger, date formatter ฯลฯ                    |
+
+
+ตัวอย่าง ✅ รูปแบบที่ส่งได้
+แบบ 1 รายการ:
+{
+  "id": "incident-001",
+  "alert_status": "Closed"
+}
+{
+  "id": "incident-002",
+  "case_result": "Benign",
+  "reason": "False alarm triggered by user activity"
+}
+{
+  "user_email": "abc@gmail.com"
+}
+
+
+
+แบบหลายรายการ:
+{
+  "incidents": [
+    { "id": "incident-001", "alert_status": "Closed" },
+    { "id": "incident-002", "alert_status": "Closed" }
+  ]
+}
+{
+  "incidents": [
+    { "id": "incident-003", "case_result": "True Positive", "reason": "Confirmed threat" },
+    { "id": "incident-004", "case_result": "Benign", "reason": "Legitimate admin action" }
+  ]
+}
+{
+  "users": [
+    { "user_email": "abc@gmail.com" },
+    { "user_email": "def@example.com" }
+  ]
+}
+
