@@ -59,26 +59,12 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: "Internal Server Error" });
 });
 
-const os = require("os");
-
-// หา IP address เครื่อง (ง่ายๆ แบบนี้)
-const interfaces = os.networkInterfaces();
-let localIp = "localhost";
-
-for (const iface of Object.values(interfaces)) {
-  for (const alias of iface) {
-    if (alias.family === "IPv4" && !alias.internal) {
-      localIp = alias.address;
-      break;
-    }
-  }
-}
-
+// 🚀 Start Server
 app.listen(port, () => {
   console.log("===================================");
-  console.log(`✅ API Ready:       http://${localIp}:${port}`);
-  console.log(`📚 Swagger UI:      http://${localIp}:${port}/api-docs`);
-  console.log(`📄 Swagger JSON:    http://${localIp}:${port}/swagger.json`);
+  console.log(`✅ API Ready:       http://localhost:${port}`);
+  console.log(`📚 Swagger UI:      http://localhost:${port}/api-docs`);
   console.log("===================================");
 });
+
 

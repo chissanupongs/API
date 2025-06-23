@@ -1,6 +1,6 @@
 // 📁 CaseForm.jsx (เวอร์ชันตกแต่ง UI/UX + แก้การแสดงผล INCIDENT & USER)
 import React, { useState, useEffect } from "react";
-import { toast, ToastContainer } from "react-toastify";
+import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "./CaseForm.css"; // 🎨 import ไฟล์ CSS ที่ตกแต่ง UI
 
@@ -277,6 +277,7 @@ export default function CaseForm() {
             </section>
           )}
 
+          {/* 🔄 ปุ่มอัปเดต Incident */}
           <button onClick={handleUpdate} disabled={loading}>
             {loading ? "Updating..." : "Update Selected Incidents"}
           </button>
@@ -311,14 +312,13 @@ export default function CaseForm() {
               ))}
             </div>
 
+            {/* 🔓 ปุ่มปลดล็อก User */}
             <button onClick={handleUnlockUsers} style={{ marginTop: "20px" }}>
               Unlock Users
             </button>
           </section>
         </div>
       )}
-
-      <ToastContainer position="top-center" autoClose={3000} />
     </div>
   );
 }
