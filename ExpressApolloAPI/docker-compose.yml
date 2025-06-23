@@ -6,6 +6,8 @@ services:
       context: ./server
       dockerfile: Dockerfile
     container_name: my-apollo-api
+    environment:
+      - NODE_TLS_REJECT_UNAUTHORIZED=0
     ports:
       - "4000:4000"
     env_file:

@@ -1,3 +1,5 @@
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
@@ -5,7 +7,6 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 const fs = require("fs");
 const path = require("path");
-const os = require("os");
 const YAML = require("yamljs");
 const swaggerUi = require("swagger-ui-express");
 
@@ -19,7 +20,12 @@ const port = process.env.PORT || 4000;
 const host = process.env.HOST || "0.0.0.0";
 const displayHost = process.env.DISPLAY_HOST || "localhost";
 
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
+// 🛡️ ใส่ header กัน browser force https
+app.use((req, res, next) => {
+  res.setHeader("Content-Security-Policy", "upgrade-insecure-requests");
+  next();
+});
 
 // 🧾 Logger
 app.use(
