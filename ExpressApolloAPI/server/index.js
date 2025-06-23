@@ -5,6 +5,7 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 const YAML = require("yamljs");
 const swaggerUi = require("swagger-ui-express");
 
@@ -15,21 +16,44 @@ const authRoutes = require("./routes/auth.routes.js");
 
 const app = express();
 const port = process.env.PORT || 4000;
+const host = process.env.HOST || "0.0.0.0";
+const displayHost = process.env.DISPLAY_HOST || "localhost";
 
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
+// 🧾 Logger
 app.use(
-  morgan('dev', {
-    skip: (req, res) => req.url === '/favicon.ico',
+  morgan("dev", {
+    skip: (req, res) => req.url === "/favicon.ico",
   })
 );
 
 // 🛡️ Middleware
-app.use(cors());
-app.use(helmet());
+app.use(cors(
+  
+));
+app.use(helmet({
+  crossOriginOpenerPolicy: false,  // ปิด COOP header
+  originAgentCluster: false        // ปิด Origin-Agent-Cluster header
+}));
+app.use((req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
+
 app.use(express.json());
 
 // 📄 Swagger Config
 const swaggerPath = path.resolve(__dirname, "config", "swagger.yaml");
 const swaggerDocument = YAML.parse(fs.readFileSync(swaggerPath, "utf8"));
+
+// 🔁 Inject runtime IP address into Swagger `servers`
+swaggerDocument.servers = [
+  {
+    url: `http://${displayHost}:${port}`,  // ใช้ http:// แทน https://
+    description: "Swagger UI with HTTP",
+  },
+];
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 app.get("/swagger.json", (req, res) => {
@@ -48,8 +72,8 @@ app.get("/", (req, res) => {
   res.send("🚀 Server is running!");
 });
 
-// ❌ 404 Not Found Handler
-app.use((req, res, next) => {
+// ❌ 404 Handler
+app.use((req, res) => {
   res.status(404).json({ error: "Not Found" });
 });
 
@@ -60,11 +84,9 @@ app.use((err, req, res, next) => {
 });
 
 // 🚀 Start Server
-app.listen(port, () => {
+app.listen(port, host, () => {
   console.log("===================================");
-  console.log(`✅ API Ready:       http://localhost:${port}`);
-  console.log(`📚 Swagger UI:      http://localhost:${port}/api-docs`);
+  console.log(`✅ API Ready:       http://${displayHost}:${port}`);
+  console.log(`📚 Swagger UI:      http://${displayHost}:${port}/api-docs`);
   console.log("===================================");
 });
-
-
