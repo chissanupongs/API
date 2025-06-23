@@ -5,8 +5,8 @@ info:
   version: 1.0.0
 
 servers:
-  - url: http://172.16.0.12:4000
-    description: Local development server
+  - url: http://172.28.16.1:4000
+    description: Internal network server
 
 security:
   - UserEmailHeader: []
