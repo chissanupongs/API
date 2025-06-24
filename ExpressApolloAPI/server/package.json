@@ -1,0 +1,37 @@
+{
+  "name": "expressapolloapi",
+  "version": "1.0.0",
+  "description": "ExpressApolloAPI/\r ├── server/                          # ฝั่ง Express API Server\r │   ├── config/                      # config เช่น DB, env, Apollo setup\r │   │   ├── apollo.config.js        # กำหนด schema/resolvers สำหรับ Apollo Server\r │   │   └── swagger.yaml            # ไฟล์ Swagger API definition\r │   ├── controllers/                # Logic การจัดการแต่ละ route\r │   │   └── case.controller.js\r │   ├── routes/                     # Routing สำหรับ REST API\r │   │   └── case.routes.js\r │   ├── graphql/                    # GraphQL typeDefs + resolvers\r │   │   ├── schema.js\r │   │   └── resolvers.js\r │   ├── middleware/                 # middleware เช่น error handler, logger\r │   ├── utils/                      # ฟังก์ชันช่วยเหลือทั่วไป\r │   └── index.js                    # Entry point Express + Swagger + Apollo\r ├── client/                         # Optional: Apollo Client Frontend (เช่น React)\r │   └── src/\r ├── .env\r ├── package.json\r └── README.md",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server/index.js",
+    "dev": "nodemon server/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@apollo/client": "^3.13.8",
+    "@apollo/server": "^4.12.2",
+    "body-parser": "^2.2.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "graphql": "^16.11.0",
+    "graphql-request": "^7.2.0",
+    "helmet": "^8.1.0",
+    "morgan": "^1.10.0",
+    "swagger-ui-express": "^5.0.1",
+    "yamljs": "^0.3.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10",
+    "@types/bun": "latest"
+  },
+  "private": true,
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "type": "module"
+}
