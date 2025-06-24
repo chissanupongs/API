@@ -1,7 +1,7 @@
-const { gql } = require("graphql-request");
+import { gql } from "graphql-request";
 
 // 🔁 Mutation สำหรับเปลี่ยนสถานะ account
-const UPDATE_USER_STATUS = gql`
+export const UPDATE_USER_STATUS = gql`
   mutation unlockAccount($id: ID!) {
     unlockAccount(id: $id) {
       id
@@ -11,7 +11,7 @@ const UPDATE_USER_STATUS = gql`
   }
 `;
 
-const INCIDENT_EDIT_MUTATION = gql`
+export const INCIDENT_EDIT_MUTATION = gql`
   mutation IncidentEdit($id: ID!, $input: [EditInput]!) {
     incidentEdit(id: $id) {
       fieldPatch(input: $input) {
@@ -25,7 +25,7 @@ const INCIDENT_EDIT_MUTATION = gql`
   }
 `;
 
-const NOTE_ADD_MUTATION = gql`
+export const NOTE_ADD_MUTATION = gql`
   mutation NoteAdd($input: NoteAddInput!) {
     noteAdd(input: $input) {
       id
@@ -34,9 +34,3 @@ const NOTE_ADD_MUTATION = gql`
     }
   }
 `;
-
-module.exports = {
-  UPDATE_USER_STATUS,
-  INCIDENT_EDIT_MUTATION,
-  NOTE_ADD_MUTATION,
-};

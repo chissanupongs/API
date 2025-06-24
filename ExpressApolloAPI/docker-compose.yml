@@ -13,7 +13,7 @@ services:
     env_file:
       - ./server/.env
     volumes:
-      - ./server/data:/app/data   # ถ้าใน container ใช้ /app/data หรือเปลี่ยนให้ถูก path
+      - ./server/data:/app/data
     restart: unless-stopped
 
   client:
@@ -22,7 +22,7 @@ services:
       dockerfile: Dockerfile-client
     container_name: my-react-client
     ports:
-      - "3000:80"  # แม็ป port 3000 บน host ไปยัง port 80 ใน container (nginx)
+      - "3000:80"
     env_file:
       - ./client/.env
     restart: unless-stopped

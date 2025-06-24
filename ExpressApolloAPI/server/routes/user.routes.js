@@ -1,34 +1,13 @@
 // routes/user.routes.js
-const express = require("express");
+import express from "express";
+import { request } from "graphql-request";
+import { USERS_QUERY } from "../graphql/queries.js";
+import { UPDATE_USER_STATUS, NOTE_ADD_MUTATION } from "../graphql/mutation.js";
+import { GRAPHQL_ENDPOINT, TOKEN } from "../config/apollo.config.js";
+import { requireUserEmail } from "../middleware/authMiddleware.js";
+import { appendHistory } from "../utils/history.js";
+
 const router = express.Router();
-const { request } = require("graphql-request");
-const { USERS_QUERY } = require("../graphql/queries");
-const { UPDATE_USER_STATUS } = require("../graphql/mutation.js");
-const { NOTE_ADD_MUTATION } = require("../graphql/mutation.js");
-const { GRAPHQL_ENDPOINT, TOKEN } = require("../config/apollo.config.js");
-const { requireUserEmail } = require("../middleware/authMiddleware");
-const { appendHistory } = require("../utils/history"); 
-
-// ===================
-// GET: รายชื่อผู้ใช้ทั้งหมด
-// ===================
-// router.get("/users", requireUserEmail, async (req, res) => {
-//   const headers = {
-//     Authorization: `Bearer ${TOKEN}`,
-//   };
-
-//   try {
-//     const data = await request({
-//       url: GRAPHQL_ENDPOINT,
-//       document: USERS_QUERY,
-//       variables: {},
-//       requestHeaders: headers,
-//     });
-//     res.json(data);
-//   } catch (error) {
-//     res.status(500).json({ error: "Failed to fetch users" });
-//   }
-// });
 
 // ===================
 // PUT: ปลดล็อกบัญชีผู้ใช้ตาม user_email
@@ -147,4 +126,4 @@ router.put("/unlock", requireUserEmail, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

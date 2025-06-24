@@ -1,65 +1,27 @@
-const express = require("express");
-const router = express.Router();
-const path = require("path");
-const fs = require("fs");
-const { request } = require("graphql-request");
-const { GRAPHQL_ENDPOINT, TOKEN } = require("../config/apollo.config.js");
-const { GET_INCIDENTS, GET_INCIDENT_BY_ID } = require("../graphql/queries");
-const {
+import express from "express";
+import path from "path";
+import fs from "fs";
+import { request } from "graphql-request";
+import { GRAPHQL_ENDPOINT, TOKEN } from "../config/apollo.config.js";
+import { GET_INCIDENTS, GET_INCIDENT_BY_ID } from "../graphql/queries.js";
+import {
   INCIDENT_EDIT_MUTATION,
   NOTE_ADD_MUTATION,
-} = require("../graphql/mutation.js");
-const { appendHistory } = require("../utils/history");
-const { requireUserEmail } = require("../middleware/authMiddleware");
+} from "../graphql/mutation.js";
+import { appendHistory } from "../utils/history.js";
+import { requireUserEmail } from "../middleware/authMiddleware.js";
+import { fileURLToPath } from "url";
+
+const router = express.Router();
 
 const VALID_RESULTS = ["WaitingAnalysis", "TruePositives", "FalsePositives"];
+
+// รองรับ __dirname ใน ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const HISTORY_FILE_PATH = path.join(__dirname, "../data/history.json");
 const headers = { Authorization: `Bearer ${TOKEN}` };
-
-// ===================
-// GET: รายชื่อเคสทั้งหมด
-// ===================
-// router.get("/incidents", requireUserEmail, async (req, res) => {
-//   const headers = { Authorization: `Bearer ${TOKEN}` };
-//   try {
-//     const data = await request({
-//       url: GRAPHQL_ENDPOINT,
-//       document: GET_INCIDENTS,
-//       variables: {},
-//       requestHeaders: headers,
-//     });
-//     res.json(data);
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ error: "Failed to fetch INCIDENTS" });
-//   }
-// });
-
-// ===================
-// PUT: ดึง incident ตาม ID
-// ===================
-// router.put("/incident", requireUserEmail, async (req, res) => {
-//   const { id } = req.body;
-//   if (!id || typeof id !== "string" || id.trim() === "") {
-//     return res
-//       .status(400)
-//       .json({ error: "Invalid or missing 'id' in request body" });
-//   }
-
-//   const headers = { Authorization: `Bearer ${TOKEN}` };
-//   try {
-//     const data = await request({
-//       url: GRAPHQL_ENDPOINT,
-//       document: GET_INCIDENT_BY_ID,
-//       variables: { id },
-//       requestHeaders: headers,
-//     });
-//     res.json(data);
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ error: "Failed to fetch incident by ID" });
-//   }
-// });
 
 // ==========================
 // PUT /closedAlertStatus
@@ -267,7 +229,7 @@ router.put("/updateCaseResult", requireUserEmail, async (req, res) => {
 // ===================
 // GET: ประวัติทั้งหมด (อ่านจาก history.json)
 // ===================
-const fsPromises = require("fs").promises;
+const fsPromises = fs.promises;
 
 router.get("/history", requireUserEmail, async (req, res) => {
   const historyDir = path.join(__dirname, "../data");
@@ -307,4 +269,4 @@ router.get("/history", requireUserEmail, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

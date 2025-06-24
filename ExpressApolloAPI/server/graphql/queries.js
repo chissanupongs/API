@@ -1,6 +1,6 @@
-const { gql } = require("graphql-request");
+import { gql } from "graphql-request";
 
-const GET_INCIDENTS = gql`
+export const GET_INCIDENTS = gql`
   query {
     incidents(orderBy: created_at, orderMode: desc, first: 50) {
       edges {
@@ -26,7 +26,7 @@ const GET_INCIDENTS = gql`
   }
 `;
 
-const GET_INCIDENT_BY_ID = gql`
+export const GET_INCIDENT_BY_ID = gql`
   query ($id: String!) {
     incident(id: $id) {
       id
@@ -48,8 +48,7 @@ const GET_INCIDENT_BY_ID = gql`
   }
 `;
 
-// GraphQL query - users list
-const USERS_QUERY = gql`
+export const USERS_QUERY = gql`
   query {
     users {
       edges {
@@ -63,9 +62,3 @@ const USERS_QUERY = gql`
     }
   }
 `;
-
-module.exports = {
-  GET_INCIDENTS,
-  GET_INCIDENT_BY_ID,
-  USERS_QUERY,
-};

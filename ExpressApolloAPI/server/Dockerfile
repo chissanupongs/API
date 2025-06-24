@@ -1,14 +1,11 @@
-FROM node:20
+FROM oven/bun:1
 
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm install
-
 COPY . .
 
-ENV NODE_ENV=production
+RUN bun install
 
 EXPOSE 4000
 
-CMD ["node", "index.js"]
+CMD ["bun", "index.js"]

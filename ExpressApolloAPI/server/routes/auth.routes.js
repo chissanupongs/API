@@ -1,8 +1,9 @@
 // routes/login.routes.js
-const express = require("express");
+import express from "express";
+import { request, gql } from "graphql-request";
+import { GRAPHQL_ENDPOINT, TOKEN } from "../config/apollo.config.js";
+
 const router = express.Router();
-const { request, gql } = require("graphql-request");
-const { GRAPHQL_ENDPOINT, TOKEN } = require("../config/apollo.config.js");
 
 // GraphQL query สำหรับดึงรายชื่อ users ทั้งหมด
 const USERS_QUERY = gql`
@@ -67,4 +68,4 @@ router.post("/login", async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

@@ -1,6 +1,5 @@
-// middleware/requireUserEmail.js
-const { request, gql } = require("graphql-request");
-const { GRAPHQL_ENDPOINT, TOKEN } = require("../config/apollo.config.js");
+import { request, gql } from "graphql-request";
+import { GRAPHQL_ENDPOINT, TOKEN } from "../config/apollo.config.js";
 
 const USERS_QUERY = gql`
   query {
@@ -22,7 +21,7 @@ const normalizeIP = (ip) => {
   return ip === "::1" ? "127.0.0.1" : ip;
 };
 
-const requireUserEmail = async (req, res, next) => {
+export const requireUserEmail = async (req, res, next) => {
   const user_email = req.headers.user_email;
 
   if (!user_email || typeof user_email !== "string") {
@@ -79,5 +78,3 @@ const requireUserEmail = async (req, res, next) => {
     next(err);
   }
 };
-
-module.exports = { requireUserEmail };

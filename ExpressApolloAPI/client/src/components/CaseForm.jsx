@@ -1,12 +1,12 @@
-// 📁 CaseForm.jsx (เวอร์ชันตกแต่ง UI/UX + แก้การแสดงผล INCIDENT & USER)
-import React, { useState, useEffect } from "react";
+// 📁 CaseForm.jsx (เวอร์ชันตกแต่ง UI/UX + แก้การแสดงผล INCIDENT & USER พร้อม Auto Logout หลัง 10 นาที inactivity)
+import React, { useState, useEffect, useRef } from "react";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "./CaseForm.css"; // 🎨 import ไฟล์ CSS ที่ตกแต่ง UI
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
 
-// 🧹 ฟังก์ชันแปลง input string เป็น array
+// 🧹 ฟังก์ชันแปลง input string เป็น array โดยแยกด้วย comma และตัดช่องว่างรอบ ๆ
 function parseCSV(input) {
   return input
     .split(",")
@@ -30,11 +30,31 @@ export default function CaseForm() {
   const [mappedUsers, setMappedUsers] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // =================== ⏳ Auto Logout Timer ===================
+  // ใช้ useRef เก็บ ID ของ timeout เพื่อควบคุมและเคลียร์ได้
+  const logoutTimerRef = useRef(null);
+
+  // ฟังก์ชันรีเซ็ต timer logout อัตโนมัติเมื่อไม่มี activity
+  function resetLogoutTimer() {
+    // เคลียร์ timer เก่าก่อนถ้ามี
+    if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
+    // ตั้ง timer ใหม่ 10 นาที (600,000 ms)
+    logoutTimerRef.current = setTimeout(() => {
+      handleLogout();
+      toast.info("Logged out due to inactivity (10 minutes)");
+    }, 1 * 60 * 1000);
+  }
+
   // =================== 🔓 LOGOUT ===================
   function handleLogout() {
     localStorage.removeItem("user_email");
     setUserEmail("");
     setIsLoggedIn(false);
+    setLoginEmail(""); // เคลียร์ input email ตอน logout
+    if (logoutTimerRef.current) {
+      clearTimeout(logoutTimerRef.current);
+      logoutTimerRef.current = null;
+    }
     toast.info("Logged out successfully");
   }
 
@@ -59,6 +79,39 @@ export default function CaseForm() {
       toast.error(err.message);
     }
   }
+
+  // =================== 🔄 Auto Logout - ตั้ง listener activity เมื่อ login ===================
+  useEffect(() => {
+    if (!isLoggedIn) {
+      // ถ้า logout หรือยังไม่ได้ login ให้เคลียร์ timer
+      if (logoutTimerRef.current) {
+        clearTimeout(logoutTimerRef.current);
+        logoutTimerRef.current = null;
+      }
+      return;
+    }
+
+    // เริ่มนับ 10 นาทีตั้งแต่ login
+    resetLogoutTimer();
+
+    // กำหนด event ที่ถือว่าเป็น activity ของผู้ใช้
+    const events = ["mousemove", "keydown", "click", "scroll", "touchstart"];
+
+    // ฟังก์ชันรีเซ็ต timer ทุกครั้งที่พบ activity
+    const activityHandler = () => resetLogoutTimer();
+
+    // ลงทะเบียน event listener
+    events.forEach((event) => window.addEventListener(event, activityHandler));
+
+    // ทำความสะอาด event listener เมื่อ component unmount หรือ logout
+    return () => {
+      if (logoutTimerRef.current) {
+        clearTimeout(logoutTimerRef.current);
+        logoutTimerRef.current = null;
+      }
+      events.forEach((event) => window.removeEventListener(event, activityHandler));
+    };
+  }, [isLoggedIn]);
 
   // =================== 🔍 INCIDENT LOOKUP ===================
   useEffect(() => {
@@ -99,6 +152,15 @@ export default function CaseForm() {
       .then((data) => setMappedUsers(data.users || []))
       .catch(() => toast.error("User lookup failed"));
   }, [userEmailInput, userEmail]);
+
+  // ✅ Logout อัตโนมัติเมื่อปิดหรือรีเฟรชหน้า
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      localStorage.removeItem("user_email");
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
 
   // =================== 🔄 UPDATE ALERT ===================
   async function updateAlertStatusBatch() {
@@ -160,10 +222,11 @@ export default function CaseForm() {
       toast.error("Update failed: " + err.message);
     } finally {
       setLoading(false);
+      setIncidentRefreshCounter((prev) => prev + 1); // ✅ trigger lookup ใหม่
     }
   }
 
-  // =================== 🔓 UNLOCK USERS ===================
+  // =================== 🧩 UNLOCK USERS ===================
   async function handleUnlockUsers() {
     const valid = mappedUsers.filter((u) => !u.error);
     if (valid.length === 0) return toast.error("No valid users");
@@ -185,8 +248,14 @@ export default function CaseForm() {
       });
     } catch (err) {
       toast.error("Unlock failed: " + err.message);
+    } finally {
+      setUserRefreshCounter((prev) => prev + 1); // ✅ trigger lookup ใหม่
     }
   }
+
+  // =================== 🔄 REFRESH COUNTERS เพื่อเรียก useEffect ใหม่ ===================
+  const [incidentRefreshCounter, setIncidentRefreshCounter] = useState(0);
+  const [userRefreshCounter, setUserRefreshCounter] = useState(0);
 
   // =================== 🧩 RENDERING ===================
   return (
@@ -210,7 +279,9 @@ export default function CaseForm() {
         <div className="main-container">
           <header className="header">
             <h2>🛠️ Manage Incidents</h2>
-            <button onClick={handleLogout} className="logout-button">Logout</button>
+            <button onClick={handleLogout} className="logout-button">
+              Logout
+            </button>
           </header>
 
           {/* 🔍 INCIDENT LOOKUP UI */}
@@ -224,7 +295,10 @@ export default function CaseForm() {
             />
             <div className="status-list">
               {mappedIncidents.map((i) => (
-                <div key={i.id || i.error} className={`status-item ${i.error ? "error" : "success"}`}>
+                <div
+                  key={i.id || i.error}
+                  className={`status-item ${i.error ? "error" : "success"}`}
+                >
                   {i.error ? (
                     <>
                       <strong>ID:</strong> {i.id} <br />
@@ -236,7 +310,11 @@ export default function CaseForm() {
                       <strong>Name:</strong> {i.alert_name} <br />
                       <strong>Status:</strong> {i.alert_status} <br />
                       <strong>Result:</strong> {i.case_result} <br />
-                      {i.source_ip && <><strong>Source IP:</strong> {i.source_ip} <br /></>}
+                      {i.source_ip && (
+                        <>
+                          <strong>Source IP:</strong> {i.source_ip} <br />
+                        </>
+                      )}
                     </>
                   )}
                 </div>
@@ -248,14 +326,20 @@ export default function CaseForm() {
           <section className="grid-2">
             <div>
               <label>Alert Status</label>
-              <select value={alertStatus} onChange={(e) => setAlertStatus(e.target.value)}>
+              <select
+                value={alertStatus}
+                onChange={(e) => setAlertStatus(e.target.value)}
+              >
                 <option>ไม่เปลี่ยนแปลง</option>
                 <option>Closed</option>
               </select>
             </div>
             <div>
               <label>Case Result</label>
-              <select value={caseResult} onChange={(e) => setCaseResult(e.target.value)}>
+              <select
+                value={caseResult}
+                onChange={(e) => setCaseResult(e.target.value)}
+              >
                 <option>ไม่เปลี่ยนแปลง</option>
                 <option>WaitingAnalysis</option>
                 <option>TruePositives</option>
@@ -296,7 +380,10 @@ export default function CaseForm() {
             />
             <div className="status-list">
               {mappedUsers.map((u) => (
-                <div key={u.user_email} className={`status-item ${u.error ? "error" : "success"}`}>
+                <div
+                  key={u.user_email}
+                  className={`status-item ${u.error ? "error" : "success"}`}
+                >
                   {u.error ? (
                     <>
                       <strong>Email:</strong> {u.user_email} <br />

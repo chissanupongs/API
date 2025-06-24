@@ -1,10 +1,10 @@
-const express = require("express");
-const router = express.Router();
-const { request } = require("graphql-request");
-const { GET_INCIDENT_BY_ID, USERS_QUERY } = require("../graphql/queries");
-const { GRAPHQL_ENDPOINT, TOKEN } = require("../config/apollo.config.js");
-const { requireUserEmail } = require("../middleware/authMiddleware");
+import express from "express";
+import { request } from "graphql-request";
+import { GET_INCIDENT_BY_ID, USERS_QUERY } from "../graphql/queries.js";
+import { GRAPHQL_ENDPOINT, TOKEN } from "../config/apollo.config.js";
+import { requireUserEmail } from "../middleware/authMiddleware.js";
 
+const router = express.Router();
 const headers = { Authorization: `Bearer ${TOKEN}` };
 
 /**
@@ -109,4 +109,4 @@ router.post("/lookup/users", requireUserEmail, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

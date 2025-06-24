@@ -1,16 +1,20 @@
-const fs = require("fs");
-const fsp = fs.promises;
-const path = require("path");
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 // Queue สำหรับป้องกัน race condition
 let writeQueue = Promise.resolve();
+
+// รองรับ __dirname ใน ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * แปลง IP ::1 เป็น 127.0.0.1
  * @param {string} ip 
  * @returns {string}
  */
-const normalizeIP = (ip) => {
+export const normalizeIP = (ip) => {
   if (!ip) return "unknown";
   return ip === "::1" ? "127.0.0.1" : ip;
 };
@@ -19,7 +23,7 @@ const normalizeIP = (ip) => {
  * คืนชื่อไฟล์ตามวันที่ปัจจุบัน เช่น history-22-06-2568.json
  * @returns {string}
  */
-const getHistoryFilePath = () => {
+export const getHistoryFilePath = () => {
   const now = new Date();
   const dd = String(now.getDate()).padStart(2, "0");
   const mm = String(now.getMonth() + 1).padStart(2, "0");
@@ -34,7 +38,7 @@ const getHistoryFilePath = () => {
  * @param {Array} entries 
  * @param {Object} context 
  */
-const appendHistory = (action, entries, context = {}) => {
+export const appendHistory = (action, entries, context = {}) => {
   if (!Array.isArray(entries)) {
     console.error("appendHistory: entries is not an array");
     return;
@@ -46,14 +50,14 @@ const appendHistory = (action, entries, context = {}) => {
 
     // สร้างโฟลเดอร์ถ้ายังไม่มี
     try {
-      await fsp.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
     } catch (mkdirErr) {
       console.error("❌ Failed to create history folder:", mkdirErr.message);
     }
 
     // อ่านข้อมูลเดิม
     try {
-      const raw = await fsp.readFile(filePath, "utf-8");
+      const raw = await fs.promises.readFile(filePath, "utf-8");
       try {
         history = raw ? JSON.parse(raw) : [];
       } catch (parseErr) {
@@ -73,7 +77,16 @@ const appendHistory = (action, entries, context = {}) => {
       ip_address = "unknown",
     } = context;
 
-    const timestamp = new Date().toISOString();
+    const timestamp = new Date().toLocaleString("th-TH", {
+      timeZone: "Asia/Bangkok",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+
 
     const newEntries = entries.map((entry) => ({
       authentication: { user_email, name, id },
@@ -88,7 +101,7 @@ const appendHistory = (action, entries, context = {}) => {
 
     // เขียนใหม่แบบ pretty JSON
     try {
-      await fsp.writeFile(filePath, JSON.stringify(history, null, 2), "utf-8");
+      await fs.promises.writeFile(filePath, JSON.stringify(history, null, 2), "utf-8");
       console.log(`✅ History saved: ${filePath}`);
     } catch (writeErr) {
       console.error("❌ Error writing history file:", writeErr.message);
@@ -96,10 +109,4 @@ const appendHistory = (action, entries, context = {}) => {
   }).catch((queueErr) => {
     console.error("❌ appendHistory queue error:", queueErr.message);
   });
-};
-
-module.exports = {
-  appendHistory,
-  normalizeIP,
-  getHistoryFilePath,
 };
