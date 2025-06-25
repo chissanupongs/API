@@ -46,7 +46,7 @@ export default function CaseForm() {
     // ตั้ง timer ใหม่ 10 นาที (600,000 ms)
     logoutTimerRef.current = setTimeout(() => {
       handleLogout();
-      toast.info("Logged out due to inactivity (${IDLE_LOGOUT_MS} minutes");
+      toast.info(`Logged out due to inactivity (${IDLE_LOGOUT_MINUTES} minutes)`);
     }, IDLE_LOGOUT_MS);
   }
 
