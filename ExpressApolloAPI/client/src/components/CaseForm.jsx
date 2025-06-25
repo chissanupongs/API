@@ -5,6 +5,7 @@ import "react-toastify/dist/ReactToastify.css";
 import "./CaseForm.css"; // 🎨 import ไฟล์ CSS ที่ตกแต่ง UI
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+const IDLE_LOGOUT_MS = Number(import.meta.env.VITE_IDLE_LOGOUT_MINUTES ?? 10) * 60 * 1000;
 
 // 🧹 ฟังก์ชันแปลง input string เป็น array โดยแยกด้วย comma และตัดช่องว่างรอบ ๆ
 function parseCSV(input) {
@@ -45,8 +46,8 @@ export default function CaseForm() {
     // ตั้ง timer ใหม่ 10 นาที (600,000 ms)
     logoutTimerRef.current = setTimeout(() => {
       handleLogout();
-      toast.info("Logged out due to inactivity (10 minutes)");
-    }, 10 * 60 * 1000);
+      toast.info("Logged out due to inactivity (${IDLE_LOGOUT_MS} minutes");
+    }, IDLE_LOGOUT_MS);
   }
 
   // =========================================================
