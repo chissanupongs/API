@@ -46,7 +46,7 @@ export default function CaseForm() {
     logoutTimerRef.current = setTimeout(() => {
       handleLogout();
       toast.info("Logged out due to inactivity (10 minutes)");
-    }, 1 * 60 * 1000);
+    }, 10 * 60 * 1000);
   }
 
   // =========================================================
