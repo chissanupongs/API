@@ -17,8 +17,9 @@ function parseCSV(input) {
 export default function CaseForm() {
   // =================== 🔐 LOGIN STATE ===================
   const [loginEmail, setLoginEmail] = useState("");
-  const [userEmail, setUserEmail] = useState(localStorage.getItem("user_email") || "");
-  const [isLoggedIn, setIsLoggedIn] = useState(!!userEmail);
+  const [userEmail, setUserEmail] = useState("");     // 👉 เริ่มต้นว่างเสมอ
+  const [isLoggedIn, setIsLoggedIn] = useState(false); // 👉 เริ่มต้น false
+
 
   // =================== ⚙️ FORM STATE ===================
   const [incidentInput, setIncidentInput] = useState("");
@@ -29,6 +30,9 @@ export default function CaseForm() {
   const [mappedIncidents, setMappedIncidents] = useState([]);
   const [mappedUsers, setMappedUsers] = useState([]);
   const [loading, setLoading] = useState(false);
+  // =================== 🔄 REFRESH COUNTERS เพื่อเรียก useEffect ใหม่ ===================
+  const [incidentRefreshCounter, setIncidentRefreshCounter] = useState(0);
+  const [userRefreshCounter, setUserRefreshCounter] = useState(0);
 
   // =================== ⏳ Auto Logout Timer ===================
   // ใช้ useRef เก็บ ID ของ timeout เพื่อควบคุมและเคลียร์ได้
@@ -45,6 +49,14 @@ export default function CaseForm() {
     }, 1 * 60 * 1000);
   }
 
+  // =========================================================
+  // 💡 Force logout on fresh load   (สำคัญ: เคลียร์ข้อมูลค้าง)
+  // ---------------------------------------------------------
+  useEffect(() => {
+    localStorage.removeItem("user_email"); // ลบ email ที่เคยเก็บไว้
+    // เราไม่ตั้ง state ที่นี่ เพราะเริ่มต้นด้านบนเป็นค่าว่างอยู่แล้ว
+  }, []);
+
   // =================== 🔓 LOGOUT ===================
   function handleLogout() {
     localStorage.removeItem("user_email");
@@ -58,8 +70,10 @@ export default function CaseForm() {
     toast.info("Logged out successfully");
   }
 
-  // =================== 🔐 LOGIN ===================
-  async function handleLogin(e) {
+  // =========================================================
+  // 🔐 LOGIN
+  // ---------------------------------------------------------
+  const handleLogin = async (e) => {
     e.preventDefault();
     if (!loginEmail.trim()) return toast.error("Enter your email");
     try {
@@ -68,17 +82,16 @@ export default function CaseForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_email: loginEmail.trim() }),
       });
-
       if (!res.ok) throw new Error((await res.json()).error || "Login failed");
 
-      localStorage.setItem("user_email", loginEmail.trim());
+      localStorage.setItem("user_email", loginEmail.trim()); // เก็บไว้ใช้ใน session ปัจจุบัน
       setUserEmail(loginEmail.trim());
       setIsLoggedIn(true);
       toast.success("Login successful");
     } catch (err) {
       toast.error(err.message);
     }
-  }
+  };
 
   // =================== 🔄 Auto Logout - ตั้ง listener activity เมื่อ login ===================
   useEffect(() => {
@@ -132,7 +145,7 @@ export default function CaseForm() {
       .then((data) => setMappedIncidents(data.incidents || []))
       .catch(() => toast.error("Incident lookup failed"))
       .finally(() => setLoading(false));
-  }, [incidentInput, userEmail]);
+  }, [incidentInput, userEmail, incidentRefreshCounter]);
 
   // =================== 🔍 USER LOOKUP ===================
   useEffect(() => {
@@ -151,7 +164,7 @@ export default function CaseForm() {
       .then((res) => res.json())
       .then((data) => setMappedUsers(data.users || []))
       .catch(() => toast.error("User lookup failed"));
-  }, [userEmailInput, userEmail]);
+  }, [userEmailInput, userEmail, userRefreshCounter]);
 
   // ✅ Logout อัตโนมัติเมื่อปิดหรือรีเฟรชหน้า
   useEffect(() => {
@@ -252,10 +265,6 @@ export default function CaseForm() {
       setUserRefreshCounter((prev) => prev + 1); // ✅ trigger lookup ใหม่
     }
   }
-
-  // =================== 🔄 REFRESH COUNTERS เพื่อเรียก useEffect ใหม่ ===================
-  const [incidentRefreshCounter, setIncidentRefreshCounter] = useState(0);
-  const [userRefreshCounter, setUserRefreshCounter] = useState(0);
 
   // =================== 🧩 RENDERING ===================
   return (
