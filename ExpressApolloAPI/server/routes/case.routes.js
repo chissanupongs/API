@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs";
 import { request } from "graphql-request";
 import { GRAPHQL_ENDPOINT, TOKEN } from "../config/apollo.config.js";
-import { GET_INCIDENTS, GET_INCIDENT_BY_ID } from "../graphql/queries.js";
+import { GET_INCIDENT_BY_ID } from "../graphql/queries.js";
 import {
   INCIDENT_EDIT_MUTATION,
   NOTE_ADD_MUTATION,
@@ -23,57 +23,126 @@ const __dirname = path.dirname(__filename);
 const HISTORY_FILE_PATH = path.join(__dirname, "../data/history.json");
 const headers = { Authorization: `Bearer ${TOKEN}` };
 
-// ==========================
-// PUT /closedAlertStatus
-// ==========================
-router.put("/closedAlertStatus", requireUserEmail, async (req, res) => {
-  let incidents = req.body.incidents;
 
-  // รองรับ single object
-  if (!Array.isArray(incidents)) {
-    const { id, alert_status } = req.body;
-    if (id && alert_status) {
-      incidents = [{ id, alert_status }];
-    } else {
-      return res.status(400).json({ error: "Missing 'id' or 'alert_status'" });
+// ---------------------------------------------------------------------------
+// 1) ฟังก์ชันสร้างสตริง GraphQL query (ไม่ใช่การเพิ่ม query ใน schema)
+// ---------------------------------------------------------------------------
+const buildGetIncidentsQuery = (alertId) => `
+  query {
+    incidents(
+      orderBy: created_at
+      orderMode: desc
+      first: 10
+      filters: {
+        mode: and
+        filterGroups: []
+        filters: {
+          key: "alert_id"
+          values: "${alertId}"
+        }
+      }
+    ) {
+      edges {
+        node {
+          id
+          alert_id
+          alert_name
+          alert_status
+          case_result
+        }
+      }
+      pageInfo {
+        globalCount
+      }
     }
   }
+`;
 
+/**
+ * 2) ดึง incident ตาม alert_id
+ *    - globalCount === 0  ➜ throw "Notfound"
+ *    - globalCount  > 1   ➜ throw "Please contact the admin"
+ *    - globalCount === 1  ➜ คืน { id, node }
+ */
+async function findIncidentByAlertId(alertId) {
+  const data = await request({
+    url: GRAPHQL_ENDPOINT,
+    document: buildGetIncidentsQuery(alertId), // ← ประกอบสตริงตรงนี้
+    requestHeaders: headers,
+  });
+
+  const count = data.incidents.pageInfo.globalCount;
+  if (count === 0) throw new Error("Notfound");
+  if (count > 1) throw new Error("Please contact the admin");
+
+  const node = data.incidents.edges[0].node;
+  return { id: node.id, node };
+}
+
+// ---------------------------------------------------------------------------
+// PUT /closedAlertStatus
+// ---------------------------------------------------------------------------
+router.put("/closedAlertStatus", requireUserEmail, async (req, res) => {
+  // ► รองรับ array / object เดี่ยว
+  let incidents = req.body.incidents;
+  if (!Array.isArray(incidents)) {
+    const { alert_id, alert_status } = req.body;
+    if (alert_id && alert_status) {
+      incidents = [{ alert_id, alert_status }];
+    } else {
+      return res
+        .status(400)
+        .json({ error: "Missing 'alert_id' or 'alert_status'" });
+    }
+  }
   if (incidents.length === 0) {
     return res.status(400).json({ error: "No incident data provided" });
   }
 
   const results = [];
-
-  for (const { id, alert_status } of incidents) {
-    if (!id || typeof id !== "string" || alert_status !== "Closed") {
-      results.push({ id, error: "Invalid id or alert_status" });
+  for (const { alert_id, alert_status } of incidents) {
+    // ตรวจเบื้องต้น
+    if (!alert_id || alert_status !== "Closed") {
+      results.push({ alert_id, error: "Invalid alert_id or alert_status" });
       continue;
     }
 
     try {
-      const existingIncidentData = await request({
+      //--------------------------------------------------------------------
+      // 1) หา incident.id จาก alert_id
+      //--------------------------------------------------------------------
+      const { id } = await findIncidentByAlertId(alert_id);
+
+      //--------------------------------------------------------------------
+      // 2) ดึง incident เดิมเพื่อ logging
+      //--------------------------------------------------------------------
+      const oldData = await request({
         url: GRAPHQL_ENDPOINT,
         document: GET_INCIDENT_BY_ID,
         variables: { id },
         requestHeaders: headers,
       });
+      const oldStatus = oldData.incident?.alert_status ?? "unknown";
+      const name = oldData.incident?.alert_name ?? "unknown";
 
-      const oldStatus = existingIncidentData.incident?.alert_status || "unknown";
-      const name = existingIncidentData.incident?.alert_name || "unknown";
-
-      const updateVars = {
-        id,
-        input: [{ key: "alert_status", value: ["Closed"], operation: "replace" }],
-      };
-
+      //--------------------------------------------------------------------
+      // 3) อัปเดต field alert_status → Closed
+      //--------------------------------------------------------------------
       const updateResponse = await request({
         url: GRAPHQL_ENDPOINT,
         document: INCIDENT_EDIT_MUTATION,
-        variables: updateVars,
+        variables: {
+          id,
+          input: [
+            { key: "alert_status", value: ["Closed"], operation: "replace" },
+          ],
+        },
         requestHeaders: headers,
       });
 
+      //--------------------------------------------------------------------
+      // 4) บันทึก history
+      //--------------------------------------------------------------------
       appendHistory(
         "updateAlertStatus",
         [
@@ -87,99 +156,110 @@ router.put("/closedAlertStatus", requireUserEmail, async (req, res) => {
         req.user
       );
 
-      const noteVars = {
-        input: {
-          action: "Closed",
-          content: "Incident was Closed",
-          objects: id,
-        },
-      };
-
+      //--------------------------------------------------------------------
+      // 5) เพิ่มโน้ต
+      //--------------------------------------------------------------------
       const noteResponse = await request({
         url: GRAPHQL_ENDPOINT,
         document: NOTE_ADD_MUTATION,
-        variables: noteVars,
+        variables: {
+          input: { action: "Closed", content: "Incident was Closed", objects: id },
+        },
         requestHeaders: headers,
       });
 
       appendHistory("addNote", [{ ...noteResponse.noteAdd }], req.user);
 
+      //--------------------------------------------------------------------
+      // 6) รวมผลลัพธ์
+      //--------------------------------------------------------------------
       results.push({
+        alert_id,
         id,
         updated: true,
         alert_status: updateResponse.incidentEdit.fieldPatch.alert_status,
         note: noteResponse.noteAdd,
       });
     } catch (err) {
-      console.error(`❌ Failed for incident ID: ${id}`, err);
-      results.push({ id, error: "Failed to update" });
+      results.push({ alert_id, error: err.message || "Failed to update" });
     }
   }
 
   res.json({ results });
 });
 
-// ==========================
+// ---------------------------------------------------------------------------
 // PUT /updateCaseResult
-// ==========================
+// ---------------------------------------------------------------------------
 router.put("/updateCaseResult", requireUserEmail, async (req, res) => {
+  // ► รองรับ array / object เดี่ยว
   let incidents = req.body.incidents;
-
-  // รองรับ single object
   if (!Array.isArray(incidents)) {
-    const { id, case_result, reason } = req.body;
-    if (id && case_result && reason) {
-      incidents = [{ id, case_result, reason }];
+    const { alert_id, case_result, reason } = req.body;
+    if (alert_id && case_result && reason) {
+      incidents = [{ alert_id, case_result, reason }];
     } else {
-      return res.status(400).json({ error: "Missing 'id', 'case_result' or 'reason'" });
+      return res
+        .status(400)
+        .json({ error: "Missing 'alert_id', 'case_result' or 'reason'" });
     }
   }
-
   if (incidents.length === 0) {
     return res.status(400).json({ error: "No incident data provided" });
   }
 
   const results = [];
-
-  for (const { id, case_result, reason } of incidents) {
-    if (!id || typeof id !== "string") {
-      results.push({ id, error: "Invalid or missing 'id'" });
+  for (const { alert_id, case_result, reason } of incidents) {
+    // ตรวจ input
+    if (!alert_id) {
+      results.push({ alert_id, error: "Invalid or missing 'alert_id'" });
       continue;
     }
-
     if (!VALID_RESULTS.includes(case_result)) {
-      results.push({ id, error: "Invalid 'case_result'" });
+      results.push({ alert_id, error: "Invalid 'case_result'" });
       continue;
     }
-
     if (!reason || typeof reason !== "string" || reason.trim() === "") {
-      results.push({ id, error: "Missing or invalid 'reason'" });
+      results.push({ alert_id, error: "Missing or invalid 'reason'" });
       continue;
     }
 
     try {
-      const existingIncidentData = await request({
+      //--------------------------------------------------------------------
+      // 1) หา incident.id จาก alert_id
+      //--------------------------------------------------------------------
+      const { id } = await findIncidentByAlertId(alert_id);
+
+      //--------------------------------------------------------------------
+      // 2) ดึงข้อมูลเก่าเพื่อ logging
+      //--------------------------------------------------------------------
+      const oldData = await request({
         url: GRAPHQL_ENDPOINT,
         document: GET_INCIDENT_BY_ID,
         variables: { id },
         requestHeaders: headers,
       });
+      const oldResult = oldData.incident?.case_result ?? "unknown";
+      const name = oldData.incident?.alert_name ?? "unknown";
 
-      const oldResult = existingIncidentData.incident?.case_result || "unknown";
-      const name = existingIncidentData.incident?.alert_name || "unknown";
-
-      const updateVars = {
-        id,
-        input: [{ key: "case_result", value: [case_result], operation: "replace" }],
-      };
-
+      //--------------------------------------------------------------------
+      // 3) อัปเดต field case_result
+      //--------------------------------------------------------------------
       const updateResponse = await request({
         url: GRAPHQL_ENDPOINT,
         document: INCIDENT_EDIT_MUTATION,
-        variables: updateVars,
+        variables: {
+          id,
+          input: [
+            { key: "case_result", value: [case_result], operation: "replace" },
+          ],
+        },
         requestHeaders: headers,
       });
 
+      //--------------------------------------------------------------------
+      // 4) บันทึก history
+      //--------------------------------------------------------------------
       appendHistory(
         "updateCaseResult",
         [
@@ -194,32 +274,36 @@ router.put("/updateCaseResult", requireUserEmail, async (req, res) => {
         req.user
       );
 
-      const noteVars = {
-        input: {
-          action: "Re-Investigated",
-          content: reason,
-          objects: id,
-        },
-      };
-
+      //--------------------------------------------------------------------
+      // 5) เพิ่มโน้ตเหตุผล
+      //--------------------------------------------------------------------
       const noteResponse = await request({
         url: GRAPHQL_ENDPOINT,
         document: NOTE_ADD_MUTATION,
-        variables: noteVars,
+        variables: {
+          input: {
+            action: "Re-Investigated",
+            content: reason,
+            objects: id,
+          },
+        },
         requestHeaders: headers,
       });
 
       appendHistory("addNote", [{ ...noteResponse.noteAdd }], req.user);
 
+      //--------------------------------------------------------------------
+      // 6) รวมผลลัพธ์
+      //--------------------------------------------------------------------
       results.push({
+        alert_id,
         id,
         updated: true,
         case_result: updateResponse.incidentEdit.fieldPatch.case_result,
         note: noteResponse.noteAdd,
       });
     } catch (err) {
-      console.error(`❌ Failed for incident ID: ${id}`, err);
-      results.push({ id, error: "Failed to update" });
+      results.push({ alert_id, error: err.message || "Failed to update" });
     }
   }
 
