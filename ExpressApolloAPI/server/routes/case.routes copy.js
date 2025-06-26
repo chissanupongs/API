@@ -1,9 +1,13 @@
+// -----------------------------------------------------------------------------
+// 📁 case.routes.js - Full version with comments
+// -----------------------------------------------------------------------------
+
 import express from "express";
 import path from "path";
 import fs from "fs";
 import { request } from "graphql-request";
 import { GRAPHQL_ENDPOINT, TOKEN } from "../config/apollo.config.js";
-import { GET_INCIDENTS, GET_INCIDENT_BY_ID } from "../graphql/queries.js";
+import { GET_INCIDENT_BY_ID } from "../graphql/queries.js";
 import {
   INCIDENT_EDIT_MUTATION,
   NOTE_ADD_MUTATION,
@@ -20,9 +24,8 @@ const VALID_RESULTS = ["WaitingAnalysis", "TruePositives", "FalsePositives"];
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const HISTORY_FILE_PATH = path.join(__dirname, "../data/history.json");
 const headers = { Authorization: `Bearer ${TOKEN}` };
-
+const fsPromises = fs.promises;
 
 // -----------------------------------------------------------------------------
 // 🔧 Build GraphQL query dynamically to match incident by alert_id
@@ -76,14 +79,13 @@ async function findIncidentByAlertId(alertId) {
   return { id: node.id, node };
 }
 
-
-// ==========================
-// PUT /closedAlertStatus
-// ==========================
+// -----------------------------------------------------------------------------
+// ✅ PUT /closedAlertStatus - Change alert_status to Closed by alert_id
+// -----------------------------------------------------------------------------
 router.put("/closedAlertStatus", requireUserEmail, async (req, res) => {
   let incidents = req.body.incidents;
 
-  // รองรับ single object
+  // รองรับ single object ด้วย
   if (!Array.isArray(incidents)) {
     const { alert_id, alert_status } = req.body;
     if (alert_id && alert_status) {
@@ -93,35 +95,36 @@ router.put("/closedAlertStatus", requireUserEmail, async (req, res) => {
     }
   }
 
-  if (incidents.length === 0) {
-    return res.status(400).json({ error: "No incident data provided" });
-  }
-
   const results = [];
 
   for (const { alert_id, alert_status } of incidents) {
-    if (!alert_id || typeof alert_id !== "string" || alert_status !== "Closed") {
+    // ตรวจสอบ input เบื้องต้น
+    if (!alert_id || alert_status !== "Closed") {
       results.push({ alert_id, error: "Invalid alert_id or alert_status" });
       continue;
     }
 
     try {
+      // หา internal incident id จาก alert_id
       const { id } = await findIncidentByAlertId(alert_id);
-      const existingIncidentData = await request({
+
+      // ดึงข้อมูล incident เก่าเพื่อเก็บ log
+      const oldData = await request({
         url: GRAPHQL_ENDPOINT,
         document: GET_INCIDENT_BY_ID,
         variables: { id },
         requestHeaders: headers,
       });
+      const oldStatus = oldData.incident?.alert_status || "unknown";
+      const name = oldData.incident?.alert_name || "unknown";
 
-      const oldStatus = existingIncidentData.incident?.alert_status || "unknown";
-      const name = existingIncidentData.incident?.alert_name || "unknown";
-
+      // เตรียมตัวแปรสำหรับอัปเดต alert_status
       const updateVars = {
         id,
         input: [{ key: "alert_status", value: ["Closed"], operation: "replace" }],
       };
 
+      // ทำการอัปเดตผ่าน mutation
       const updateResponse = await request({
         url: GRAPHQL_ENDPOINT,
         document: INCIDENT_EDIT_MUTATION,
@@ -129,19 +132,14 @@ router.put("/closedAlertStatus", requireUserEmail, async (req, res) => {
         requestHeaders: headers,
       });
 
+      // บันทึกประวัติการอัปเดตสถานะ
       appendHistory(
         "updateAlertStatus",
-        [
-          {
-            id,
-            name,
-            status_before: oldStatus,
-            status_after: updateResponse.incidentEdit.fieldPatch.alert_status,
-          },
-        ],
+        [{ id, name, status_before: oldStatus, status_after: updateResponse.incidentEdit.fieldPatch.alert_status }],
         req.user
       );
 
+      // เตรียมตัวแปรสำหรับเพิ่มโน้ต
       const noteVars = {
         input: {
           action: "Closed",
@@ -150,6 +148,7 @@ router.put("/closedAlertStatus", requireUserEmail, async (req, res) => {
         },
       };
 
+      // เพิ่มโน้ตเหตุการณ์
       const noteResponse = await request({
         url: GRAPHQL_ENDPOINT,
         document: NOTE_ADD_MUTATION,
@@ -157,30 +156,32 @@ router.put("/closedAlertStatus", requireUserEmail, async (req, res) => {
         requestHeaders: headers,
       });
 
+      // บันทึกประวัติการเพิ่มโน้ต
       appendHistory("addNote", [{ ...noteResponse.noteAdd }], req.user);
 
+      // ส่งผลลัพธ์กลับ
       results.push({
-        id,
+        alert_id,
         updated: true,
         alert_status: updateResponse.incidentEdit.fieldPatch.alert_status,
         note: noteResponse.noteAdd,
       });
     } catch (err) {
-      console.error(`❌ Failed for incident ID: ${alert_id}`, err);
-      results.push({ alert_id, error: "Failed to update" });
+      console.error(`❌ ${alert_id} – ${err.message}`, err);
+      results.push({ alert_id, error: err.message });
     }
   }
 
   res.json({ results });
 });
 
-// ==========================
-// PUT /updateCaseResult
-// ==========================
+// -----------------------------------------------------------------------------
+// ✅ PUT /updateCaseResult - Update case_result & add note by alert_id
+// -----------------------------------------------------------------------------
 router.put("/updateCaseResult", requireUserEmail, async (req, res) => {
   let incidents = req.body.incidents;
 
-  // รองรับ single object
+  // รองรับ single object ด้วย
   if (!Array.isArray(incidents)) {
     const { alert_id, case_result, reason } = req.body;
     if (alert_id && case_result && reason) {
@@ -190,45 +191,44 @@ router.put("/updateCaseResult", requireUserEmail, async (req, res) => {
     }
   }
 
-  if (incidents.length === 0) {
-    return res.status(400).json({ error: "No incident data provided" });
-  }
-
   const results = [];
 
   for (const { alert_id, case_result, reason } of incidents) {
-    if (!alert_id || typeof alert_id !== "string") {
+    // ตรวจสอบ input เบื้องต้น
+    if (!alert_id) {
       results.push({ alert_id, error: "Invalid or missing 'alert_id'" });
       continue;
     }
-
     if (!VALID_RESULTS.includes(case_result)) {
       results.push({ alert_id, error: "Invalid 'case_result'" });
       continue;
     }
-
     if (!reason || typeof reason !== "string" || reason.trim() === "") {
       results.push({ alert_id, error: "Missing or invalid 'reason'" });
       continue;
     }
 
     try {
+      // หา internal incident id จาก alert_id
       const { id } = await findIncidentByAlertId(alert_id);
-      const existingIncidentData = await request({
+
+      // ดึงข้อมูล incident เก่าเพื่อเก็บ log
+      const oldData = await request({
         url: GRAPHQL_ENDPOINT,
         document: GET_INCIDENT_BY_ID,
         variables: { id },
         requestHeaders: headers,
       });
+      const oldResult = oldData.incident?.case_result || "unknown";
+      const name = oldData.incident?.alert_name || "unknown";
 
-      const oldResult = existingIncidentData.incident?.case_result || "unknown";
-      const name = existingIncidentData.incident?.alert_name || "unknown";
-
+      // เตรียมตัวแปรสำหรับอัปเดต case_result
       const updateVars = {
         id,
         input: [{ key: "case_result", value: [case_result], operation: "replace" }],
       };
 
+      // ทำการอัปเดตผ่าน mutation
       const updateResponse = await request({
         url: GRAPHQL_ENDPOINT,
         document: INCIDENT_EDIT_MUTATION,
@@ -236,20 +236,14 @@ router.put("/updateCaseResult", requireUserEmail, async (req, res) => {
         requestHeaders: headers,
       });
 
+      // บันทึกประวัติการอัปเดต case_result
       appendHistory(
         "updateCaseResult",
-        [
-          {
-            id,
-            name,
-            result_before: oldResult,
-            result_after: updateResponse.incidentEdit.fieldPatch.case_result,
-            reason,
-          },
-        ],
+        [{ id, name, result_before: oldResult, result_after: updateResponse.incidentEdit.fieldPatch.case_result, reason }],
         req.user
       );
 
+      // เตรียมตัวแปรสำหรับเพิ่มโน้ตเหตุผล
       const noteVars = {
         input: {
           action: "Re-Investigated",
@@ -258,6 +252,7 @@ router.put("/updateCaseResult", requireUserEmail, async (req, res) => {
         },
       };
 
+      // เพิ่มโน้ตเหตุผล
       const noteResponse = await request({
         url: GRAPHQL_ENDPOINT,
         document: NOTE_ADD_MUTATION,
@@ -265,28 +260,28 @@ router.put("/updateCaseResult", requireUserEmail, async (req, res) => {
         requestHeaders: headers,
       });
 
+      // บันทึกประวัติการเพิ่มโน้ต
       appendHistory("addNote", [{ ...noteResponse.noteAdd }], req.user);
 
+      // ส่งผลลัพธ์กลับ
       results.push({
-        id,
+        alert_id,
         updated: true,
         case_result: updateResponse.incidentEdit.fieldPatch.case_result,
         note: noteResponse.noteAdd,
       });
     } catch (err) {
-      console.error(`❌ Failed for incident ID: ${alert_id}`, err);
-      results.push({ alert_id, error: "Failed to update" });
+      console.error(`❌ ${alert_id} – ${err.message}`, err);
+      results.push({ alert_id, error: err.message });
     }
   }
 
   res.json({ results });
 });
 
-// ===================
-// GET: ประวัติทั้งหมด (อ่านจาก history.json)
-// ===================
-const fsPromises = fs.promises;
-
+// -----------------------------------------------------------------------------
+// 🕘 GET /history - Read all history from /data/history-*.json
+// -----------------------------------------------------------------------------
 router.get("/history", requireUserEmail, async (req, res) => {
   const historyDir = path.join(__dirname, "../data");
 
@@ -294,22 +289,20 @@ router.get("/history", requireUserEmail, async (req, res) => {
     // อ่านชื่อไฟล์ในโฟลเดอร์ data
     const files = await fsPromises.readdir(historyDir);
 
-    // กรองเฉพาะไฟล์ที่ขึ้นต้นด้วย 'history-' และลงท้ายด้วย .json
+    // กรองไฟล์ที่ขึ้นต้นด้วย 'history-' และลงท้ายด้วย .json
     const historyFiles = files.filter(f => f.startsWith("history-") && f.endsWith(".json"));
 
     let allEntries = [];
 
-    // อ่านข้อมูลจากไฟล์ history แต่ละไฟล์
+    // อ่านและรวมข้อมูลจากไฟล์ history ทุกไฟล์
     for (const file of historyFiles) {
       try {
         const content = await fsPromises.readFile(path.join(historyDir, file), "utf-8");
-        if (content) {
-          const parsed = JSON.parse(content);
-          if (Array.isArray(parsed)) {
-            allEntries = allEntries.concat(parsed);
-          } else {
-            console.warn(`File ${file} does not contain an array, skipping`);
-          }
+        const parsed = JSON.parse(content);
+        if (Array.isArray(parsed)) {
+          allEntries = allEntries.concat(parsed);
+        } else {
+          console.warn(`File ${file} does not contain an array, skipping`);
         }
       } catch (err) {
         console.error(`Error reading/parsing ${file}:`, err);
@@ -318,7 +311,6 @@ router.get("/history", requireUserEmail, async (req, res) => {
     }
 
     res.json(allEntries);
-
   } catch (err) {
     console.error("Failed to read history files:", err);
     res.status(500).json({ error: "Failed to read history files" });
