@@ -107,10 +107,11 @@ router.put("/unlock", requireUserEmail, async (req, res) => {
         if (noteResponse?.noteAdd) {
           appendHistory("addNote", [noteResponse.noteAdd], req.user);
         }
-
+        // ✅ ตัด id ออกก่อนส่ง response
+        const { id: _, ...unlockedWithoutId } = unlockedUser;
         results.push({
           user_email,
-          ...unlockedUser,
+          ...unlockedWithoutId,
           note: noteResponse.noteAdd,
         });
       } catch (err) {

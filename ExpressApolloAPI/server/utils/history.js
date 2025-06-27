@@ -38,6 +38,17 @@ export const getHistoryFilePath = () => {
  * @param {Array} entries 
  * @param {Object} context 
  */
+
+// ✨ helper: ตัด id แล้วคืนแต่ alert_id (+ ฟิลด์อื่น)
+const redactId = (entry) => {
+  // ถ้ามี alert_id ให้ทิ้ง id (ไม่ให้โชว์)
+  if (entry && typeof entry === "object" && "alert_id" in entry) {
+    const { id: _omit, ...rest } = entry;
+    return rest;          // ✅ เหลือ alert_id, field อื่น ๆ
+  }
+  return entry;           // กรณีอื่น ไม่เปลี่ยน
+};
+
 export const appendHistory = (action, entries, context = {}) => {
   if (!Array.isArray(entries)) {
     console.error("appendHistory: entries is not an array");
@@ -89,11 +100,11 @@ export const appendHistory = (action, entries, context = {}) => {
 
 
     const newEntries = entries.map((entry) => ({
-      authentication: { user_email, name, id },
+      authentication: { user_email, name },
       user_agent,
       ip_address: normalizeIP(ip_address),
       action,
-      case: entry,
+      case: redactId(entry),
       timestamp,
     }));
 

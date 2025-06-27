@@ -83,7 +83,6 @@ async function findIncidentByAlertId(alertId) {
 router.put("/closedAlertStatus", requireUserEmail, async (req, res) => {
   let incidents = req.body.incidents;
 
-  // รองรับ single object
   if (!Array.isArray(incidents)) {
     const { alert_id, alert_status } = req.body;
     if (alert_id && alert_status) {
@@ -106,16 +105,7 @@ router.put("/closedAlertStatus", requireUserEmail, async (req, res) => {
     }
 
     try {
-      const { id } = await findIncidentByAlertId(alert_id);
-      const existingIncidentData = await request({
-        url: GRAPHQL_ENDPOINT,
-        document: GET_INCIDENT_BY_ID,
-        variables: { id },
-        requestHeaders: headers,
-      });
-
-      const oldStatus = existingIncidentData.incident?.alert_status || "unknown";
-      const name = existingIncidentData.incident?.alert_name || "unknown";
+      const { id, node } = await findIncidentByAlertId(alert_id);
 
       const updateVars = {
         id,
@@ -129,50 +119,74 @@ router.put("/closedAlertStatus", requireUserEmail, async (req, res) => {
         requestHeaders: headers,
       });
 
+      // ✅ เพิ่มประวัติการอัปเดต
       appendHistory(
         "updateAlertStatus",
         [
           {
             id,
-            name,
-            status_before: oldStatus,
-            status_after: updateResponse.incidentEdit.fieldPatch.alert_status,
+            alert_id,
+            name: node.alert_name || "unknown",
+            status_before: node.alert_status || "unknown",
+            status_after: updateResponse?.incidentEdit?.fieldPatch?.alert_status || "unknown",
           },
         ],
         req.user
       );
 
-      const noteVars = {
-        input: {
-          action: "Closed",
-          content: "Incident was Closed",
-          objects: id,
-        },
-      };
-
+      // ✅ เพิ่ม note
       const noteResponse = await request({
         url: GRAPHQL_ENDPOINT,
         document: NOTE_ADD_MUTATION,
-        variables: noteVars,
+        variables: {
+          input: {
+            action: "Closed",
+            content: "Incident was Closed",
+            objects: id,
+          },
+        },
         requestHeaders: headers,
       });
 
       appendHistory("addNote", [{ ...noteResponse.noteAdd }], req.user);
 
       results.push({
-        id,
+        alert_id,
         updated: true,
         alert_status: updateResponse.incidentEdit.fieldPatch.alert_status,
         note: noteResponse.noteAdd,
       });
     } catch (err) {
-      console.error(`❌ Failed for incident ID: ${alert_id}`, err);
-      results.push({ alert_id, error: "Failed to update" });
+      console.error(`❌ Failed for alert_id: ${alert_id} – ${err.message}`);
+
+      let status = 500;
+      let message = "Unknown error";
+
+      if (err.message === "Notfound") {
+        status = 404;
+        message = `No incident found for alert_id: ${alert_id}`;
+      } else if (err.message === "Please contact the admin") {
+        status = 409;
+        message = `Multiple incidents found for alert_id: ${alert_id}`;
+      }
+
+      results.push({ alert_id, error: message });
     }
   }
 
-  res.json({ results });
+  // 🔍 สรุปสถานะ
+  const hasErrors = results.some(r => r.error);
+  const hasSuccess = results.some(r => r.updated);
+
+  if (hasSuccess && hasErrors) {
+    res.status(207).json({ results }); // Multi-Status: บางส่วนสำเร็จ
+  } else if (hasErrors) {
+    res.status(400).json({ results }); // ผิดทั้งหมด
+  } else {
+    res.status(200).json({ results }); // สำเร็จทั้งหมด
+  }
 });
+
 
 // ==========================
 // PUT /updateCaseResult
@@ -180,7 +194,6 @@ router.put("/closedAlertStatus", requireUserEmail, async (req, res) => {
 router.put("/updateCaseResult", requireUserEmail, async (req, res) => {
   let incidents = req.body.incidents;
 
-  // รองรับ single object
   if (!Array.isArray(incidents)) {
     const { alert_id, case_result, reason } = req.body;
     if (alert_id && case_result && reason) {
@@ -213,26 +226,15 @@ router.put("/updateCaseResult", requireUserEmail, async (req, res) => {
     }
 
     try {
-      const { id } = await findIncidentByAlertId(alert_id);
-      const existingIncidentData = await request({
-        url: GRAPHQL_ENDPOINT,
-        document: GET_INCIDENT_BY_ID,
-        variables: { id },
-        requestHeaders: headers,
-      });
-
-      const oldResult = existingIncidentData.incident?.case_result || "unknown";
-      const name = existingIncidentData.incident?.alert_name || "unknown";
-
-      const updateVars = {
-        id,
-        input: [{ key: "case_result", value: [case_result], operation: "replace" }],
-      };
+      const { id, node } = await findIncidentByAlertId(alert_id);
 
       const updateResponse = await request({
         url: GRAPHQL_ENDPOINT,
         document: INCIDENT_EDIT_MUTATION,
-        variables: updateVars,
+        variables: {
+          id,
+          input: [{ key: "case_result", value: [case_result], operation: "replace" }],
+        },
         requestHeaders: headers,
       });
 
@@ -241,8 +243,9 @@ router.put("/updateCaseResult", requireUserEmail, async (req, res) => {
         [
           {
             id,
-            name,
-            result_before: oldResult,
+            alert_id,
+            name: node.alert_name || "unknown",
+            result_before: node.case_result || "unknown",
             result_after: updateResponse.incidentEdit.fieldPatch.case_result,
             reason,
           },
@@ -250,36 +253,55 @@ router.put("/updateCaseResult", requireUserEmail, async (req, res) => {
         req.user
       );
 
-      const noteVars = {
-        input: {
-          action: "Re-Investigated",
-          content: reason,
-          objects: id,
-        },
-      };
-
       const noteResponse = await request({
         url: GRAPHQL_ENDPOINT,
         document: NOTE_ADD_MUTATION,
-        variables: noteVars,
+        variables: {
+          input: {
+            action: "Re-Investigated",
+            content: reason,
+            objects: id,
+          },
+        },
         requestHeaders: headers,
       });
 
       appendHistory("addNote", [{ ...noteResponse.noteAdd }], req.user);
 
       results.push({
-        id,
+        alert_id,
         updated: true,
         case_result: updateResponse.incidentEdit.fieldPatch.case_result,
         note: noteResponse.noteAdd,
       });
     } catch (err) {
-      console.error(`❌ Failed for incident ID: ${alert_id}`, err);
-      results.push({ alert_id, error: "Failed to update" });
+      console.error(`❌ Failed for alert_id: ${alert_id} – ${err.message}`);
+
+      let status = 500;
+      let message = "Unknown error";
+
+      if (err.message === "Notfound") {
+        status = 404;
+        message = `No incident found for alert_id: ${alert_id}`;
+      } else if (err.message === "Please contact the admin") {
+        status = 409;
+        message = `Multiple incidents found for alert_id: ${alert_id}`;
+      }
+
+      results.push({ alert_id, error: message });
     }
   }
 
-  res.json({ results });
+  const hasErrors = results.some(r => r.error);
+  const hasSuccess = results.some(r => r.updated);
+
+  if (hasSuccess && hasErrors) {
+    res.status(207).json({ results });
+  } else if (hasErrors) {
+    res.status(400).json({ results });
+  } else {
+    res.status(200).json({ results });
+  }
 });
 
 // ===================
