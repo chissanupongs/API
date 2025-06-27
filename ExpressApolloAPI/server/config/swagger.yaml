@@ -312,7 +312,7 @@ paths:
                       type: string
                     case_result:
                       type: string
-                      enum: [WaitingAnalysis, TruePositives, FalsePositives]
+                      enum: [WaitingAnalysis, TruePositives, FalsePositives, Analyzing]
                     reason:
                       type: string
                 - type: object
@@ -328,7 +328,7 @@ paths:
                             type: string
                           case_result:
                             type: string
-                            enum: [WaitingAnalysis, TruePositives, FalsePositives]
+                            enum: [WaitingAnalysis, TruePositives, FalsePositives, Analyzing]
                           reason:
                             type: string
             examples:

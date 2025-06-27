@@ -366,6 +366,7 @@ export default function CaseForm() {
                 <option>WaitingAnalysis</option>
                 <option>TruePositives</option>
                 <option>FalsePositives</option>
+                <option>Analyzing</option>
               </select>
             </div>
           </section>
