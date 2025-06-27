@@ -285,7 +285,7 @@ router.put("/updateCaseResult", requireUserEmail, async (req, res) => {
         message = `No incident found for alert_id: ${alert_id}`;
       } else if (err.message === "Please contact the admin") {
         status = 409;
-        message = `Multiple incidents found for alert_id: ${alert_id}`;
+        message = `Multiple incidents found for alert_id: ${alert_id} Please contact the admin!`;
       }
 
       results.push({ alert_id, error: message });
